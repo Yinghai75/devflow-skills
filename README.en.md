@@ -18,10 +18,47 @@
 
 ---
 
+## Why DevFlow
+
+There are already many AI coding workflows and specification frameworks. DevFlow targets a narrower problem: **how one developer and one coding agent can move a development task to acceptance, keep it recoverable, and archive it cleanly**.
+
+It does not try to orchestrate a team of agents, and it does not turn every task into a heavy specification project. DevFlow stores state in your repository and uses a small set of fixed stages:
+
+```text
+goal capture -> plan review -> implementation and validation -> UAT loop -> final archive
+```
+
+The tradeoffs are deliberate:
+
+- **Less implicit context**: task state lives in the `devflow/` file tree, not only in chat history.
+- **Less workflow weight**: 7 skills organized around a feature lifecycle.
+- **Stronger recovery**: `df-status -r` restores the current feature, plan, and next step.
+- **Conservative risk control**: high-risk work requires RED evidence, blast-radius gates, and release checks.
+
+---
+
 ## Install
+
+### Skills CLI
 
 ```bash
 npx skills add https://github.com/Yinghai75/devflow-skills
+```
+
+Use this in agent environments that support installing GitHub skill repositories through `npx skills`, such as Codex CLI and Claude Code.
+
+### Manual Install
+
+```bash
+# Codex CLI
+mkdir -p ~/.codex/skills
+git clone https://github.com/Yinghai75/devflow-skills.git /tmp/devflow-skills-codex
+cp -R /tmp/devflow-skills-codex/df-* ~/.codex/skills/
+
+# Claude Code
+mkdir -p ~/.claude/skills
+git clone https://github.com/Yinghai75/devflow-skills.git /tmp/devflow-skills-claude
+cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ```
 
 Start from a concrete development goal:
@@ -30,62 +67,94 @@ Start from a concrete development goal:
 /df-init
 ```
 
-Then move through the workflow:
+---
 
-```bash
-/df-plan
-/df-execute
-/df-uat
-/df-fix
-/df-accept
-```
+## Quick Start
 
-Save or restore context across sessions:
-
-```bash
-/df-status
-/df-status -r
-```
+- **New requirement**: run `/df-init` to create a feature directory and classify the risk lane.
+- **Plan the work**: run `/df-plan` to write the plan, checklist, and validation strategy, then stop for review.
+- **Implement**: run `/df-execute` to work through the checklist while updating state and evidence.
+- **Resume later**: run `/df-status -r` in a new session to restore the last handoff.
+- **Accept and archive**: run `/df-uat`, `/df-fix`, and `/df-accept` to close the UAT loop and archive the feature.
 
 ---
 
-## What DevFlow Does
+## Core Design
 
-DevFlow is a small set of workflow skills for personal development. It does not aim to be a fully autonomous agent orchestration system. Instead, it turns one development task into a readable, recoverable, and verifiable feature lifecycle.
-
-It helps you:
-
-- Write goals, constraints, plans, validation, and UAT evidence into project files.
-- Resume work across sessions without relying on chat history.
-- Treat risky changes conservatively with RED evidence, blast-radius checks, and release gates.
-- Keep human review points in the loop when goals or acceptance criteria are unclear.
-
----
-
-## Skills
-
-| Skill | Purpose |
-| --- | --- |
-| `df-init` | Start a feature, create `devflow/active/<date-slug>/`, and capture goals, constraints, success criteria, and risk lane. |
-| `df-plan` | Write `plan.md`, `checklist.yaml`, and `validation.md`; add blast-radius and validation gates for risky work. |
-| `df-execute` | Implement the checklist while updating state, evidence, and handoff notes. |
-| `df-uat` | Guide manual UAT and record findings in `issues.yaml`. |
-| `df-fix` | Investigate, fix, validate, and close UAT issues. |
-| `df-accept` | Check completion, UAT issues, validation evidence, and gates before archiving the feature. |
-| `df-status` | Save a handoff or restore the current DevFlow context in a new session. |
+| Dimension | Heavy specification/orchestration frameworks | DevFlow |
+| --- | --- | --- |
+| Core object | specs, agents, phases, or role collaboration | one deliverable feature |
+| State location | spec directories, chat history, or agent state | repository-local `devflow/` file tree |
+| Recovery | context continuation or rereading multiple docs | `df-status -r` restores the current handoff |
+| Risk handling | usually a fixed process | automatic `fast`, `standard`, and `high-risk` lanes |
+| Validation | can drift into document-only claims | checklist, validation, evidence, and UAT issue loop |
+| Human role | often optimized toward automation | plan review and acceptance stay human-in-the-loop by default |
 
 ---
 
 ## Workflow
 
 ```text
-df-init -> df-plan -> df-execute -> df-uat -> df-fix -> df-accept
+┌─────────┐    ┌─────────┐    ┌────────────┐    ┌────────┐    ┌───────────┐
+│ df-init │───▶│ df-plan │───▶│ df-execute │───▶│ df-uat │───▶│ df-accept │
+└─────────┘    └─────────┘    └────────────┘    └────────┘    └───────────┘
+                                      ▲              │
+                                      │              ▼
+                                  ┌────────┐    write issues.yaml
+                                  │ df-fix │◀────────┘
+                                  └────────┘
+
+df-status: save a handoff at any stage, or restore it in a new session with df-status -r
 ```
 
-`df-status` works across the whole workflow:
+- `fast` is for low-risk docs and small local fixes.
+- `standard` is for normal multi-file development with plan, execution, UAT, fix, and acceptance.
+- `high-risk` is for state machines, production release, data writes, cross-module orchestration, and similar work; it requires RED evidence, blast-radius gates, and release checks.
 
-- Run `df-status` before stopping to update `handoff.md`.
-- Run `df-status -r` in a new session to restore the current feature, plan, state, and next step.
+---
+
+## Skills
+
+| Skill | Purpose | Main outputs |
+| --- | --- | --- |
+| `df-init` | Start a feature and capture goals, constraints, success criteria, and risk lane. | `context.md`, `state.yaml` |
+| `df-plan` | Write a human-readable plan, checklist, and validation strategy. | `plan.md`, `checklist.yaml`, `validation.md` |
+| `df-execute` | Implement the checklist while updating state and evidence. | code changes, `evidence/manifest.json`, `handoff.md` |
+| `df-uat` | Guide manual UAT and record findings. | `uat.md`, `issues.yaml` |
+| `df-fix` | Fix UAT issues and run regression validation. | fix commits, updated evidence |
+| `df-accept` | Check completion, UAT issues, evidence, and risk gates before archiving. | `acceptance.md`, `devflow/archive/<date-slug>/` |
+| `df-status` | Save or restore a cross-session handoff. | `handoff.md` |
+
+---
+
+## Runtime File Tree
+
+After `df-init`, the target repository gets a DevFlow workspace:
+
+```text
+your-repo/
+└── devflow/
+    ├── active/
+    │   └── 2026-05-01-add-login/
+    │       ├── context.md
+    │       ├── plan.md
+    │       ├── checklist.yaml
+    │       ├── validation.md
+    │       ├── state.yaml
+    │       ├── handoff.md
+    │       ├── uat.md
+    │       ├── issues.yaml
+    │       ├── acceptance.md
+    │       └── evidence/
+    │           └── manifest.json
+    ├── archive/
+    ├── roadmap.md
+    └── shared/
+        ├── gate_registry.yaml
+        └── golden_sets/
+```
+
+These files are DevFlow's source of truth: the agent can read them, and you can review, edit, or take over at any time.
 
 ---
 
@@ -110,4 +179,3 @@ Each `df-*` directory is an independent skill with `SKILL.md` as its entry point
 ## License
 
 MIT
-
