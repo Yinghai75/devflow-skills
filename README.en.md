@@ -2,7 +2,7 @@
 
 # DevFlow Skills
 
-![DevFlow Skills](./asset/devflow-skills-cover.png)
+![DevFlow Skills](./asset/devflow-skills-cover-clean.png)
 
 **English** · [中文](./README.md)
 
