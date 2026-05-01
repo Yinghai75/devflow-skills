@@ -6,12 +6,13 @@
 
 [English](./README.en.md) · **中文**
 
-**面向个人开发任务的轻量、可恢复、人在环 AI 编码工作流**
+**个人开发者的轻量 AI 编码工作流：7 个 skills，约 420 行指令，覆盖完整 feature 生命周期**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
   <img src="https://img.shields.io/badge/skills-7-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/workflow-DevFlow-10B981?style=flat-square" alt="Workflow"/>
+  <img src="https://img.shields.io/badge/instructions-~420-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
 </div>
@@ -20,26 +21,38 @@
 
 ## 为什么做 DevFlow
 
-已经有很多 AI 编码工作流和规格框架，DevFlow 解决的是更窄的问题：**一个人和一个 coding agent 如何把一次开发任务稳定推进到可验收、可恢复、可归档**。
+很多 AI 编码工作流都在解决更大的问题：规格管理、团队协作、多 agent 编排、复杂项目治理。DevFlow 的目标更窄：
 
-它不试图编排一组 agent，也不把每个任务都升级成重型规格工程。DevFlow 把状态落在你的仓库里，用少量固定阶段覆盖完整生命周期：
+**一个人 + 一个 coding agent，把一次开发任务稳定推到可验收、可恢复、可归档。**
+
+按当前公开仓库粗略统计，不同方案的指令规模差异很明显：
+
+| 框架 | 主要单元 | 子代理配置 | 粗略指令量 |
+| --- | --- | --- | --- |
+| [Superpowers](https://github.com/obra/superpowers) | 14 个 skills | 1 个 agent 文件 | 约 3,200 行 |
+| [GSD](https://github.com/gsd-build/get-shit-done) | 99 个 workflows | 33 个 agent 文件 | 约 47,600 行 |
+| **DevFlow** | **7 个 skills** | **无内置 agent 池** | **约 420 行** |
+
+指令越重，每次会话烧的 token 越多，agent 越容易在长提示词里迷失重点。DevFlow 选择把范围收窄：不追求覆盖所有项目治理场景，只把个人开发的一次 feature 做扎实。
+
+它不追求“全自动接管项目”，也不把每个小需求都升级成重型规格工程。DevFlow 把一次 feature 拆成几个固定阶段：
 
 ```text
 目标收敛 -> 计划审阅 -> 执行验证 -> UAT 闭环 -> 最终归档
 ```
 
-这样做的取舍很明确：
+核心取舍：
 
-- **更少隐式上下文**：任务状态在 `devflow/` 文件树里，不只在聊天记录里。
-- **更少流程负担**：只有 7 个 skills，围绕 feature 生命周期组织。
-- **更强恢复能力**：新会话可以通过 `df-status -r` 找回当前 feature、计划和下一步。
-- **更保守的风险控制**：高风险任务要求 RED 证据、防炸门禁和发布闭环。
+- **状态落仓库**：目标、计划、checklist、验证证据和断点都写进 `devflow/` 文件树。
+- **流程足够轻**：7 个 skills，约 420 行 `SKILL.md` 指令，围绕 feature 生命周期组织。
+- **恢复成本低**：换会话后运行 `df-status -r`，即可恢复当前 feature、计划和下一步。
+- **风险控制保守**：高风险任务要求 RED 证据、防炸门禁和发布闭环，agent 不能只写“已通过”来自证。
 
 ---
 
 ## 安装
 
-### 通过 Skills CLI
+### Skills CLI（推荐）
 
 ```bash
 npx skills add https://github.com/Yinghai75/devflow-skills
@@ -61,34 +74,21 @@ git clone https://github.com/Yinghai75/devflow-skills.git /tmp/devflow-skills-cl
 cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ```
 
-安装后，从一个明确开发目标开始：
-
-```bash
-/df-init
-```
+其他 agent：将 `df-*` 目录复制到对应 skills 路径即可。每个 `df-*` 目录都是独立 skill，入口为 `SKILL.md`。
 
 ---
 
 ## 快速上手
 
-- **拿到新需求**：运行 `/df-init`，创建 feature 目录并分诊风险车道。
-- **确定怎么做**：运行 `/df-plan`，生成计划、checklist 和验证方案，停在审阅点。
-- **开始实施**：运行 `/df-execute`，按 checklist 执行并更新状态和证据。
-- **中断后恢复**：在新会话运行 `/df-status -r`，恢复上次断点。
-- **验收归档**：运行 `/df-uat`、`/df-fix`、`/df-accept`，完成 UAT 闭环和归档。
-
----
-
-## 核心设计
-
-| 维度 | 重型规格/编排框架 | DevFlow |
-| --- | --- | --- |
-| 核心对象 | specs、agent、phase 或多角色协作 | 单个可交付 feature |
-| 状态位置 | 规格目录、聊天历史或 agent 内部状态 | 仓库内 `devflow/` 文件树 |
-| 恢复方式 | 依赖上下文续接或重新读取多份文档 | `df-status -r` 恢复当前断点 |
-| 风险处理 | 流程通常相对固定 | 自动分诊 `fast`、`standard`、`high-risk` |
-| 验证口径 | 容易变成文档自证 | checklist、validation、evidence 和 UAT issue 闭环 |
-| 人在环 | 可能追求尽量自动化 | 计划审阅和验收默认保留人工确认点 |
+```bash
+/df-init        # 拿到需求：创建 feature 目录，收敛目标，分诊风险车道
+/df-plan        # 确定怎么做：生成计划、checklist、验证方案，停在审阅点
+/df-execute     # 开始实施：按 checklist 执行，更新状态和证据
+/df-status -r   # 换会话了：恢复上次断点
+/df-uat         # 人工验收：记录 UAT 结果和问题
+/df-fix         # 修复问题：修 UAT issue，跑回归门禁
+/df-accept      # 最终归档：检查证据和门禁，通过后移入 archive/
+```
 
 ---
 
@@ -98,81 +98,88 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ┌─────────┐    ┌─────────┐    ┌────────────┐    ┌────────┐    ┌───────────┐
 │ df-init │───▶│ df-plan │───▶│ df-execute │───▶│ df-uat │───▶│ df-accept │
 └─────────┘    └─────────┘    └────────────┘    └────────┘    └───────────┘
-                                      ▲              │
-                                      │              ▼
-                                  ┌────────┐    记录 issues.yaml
-                                  │ df-fix │◀────────┘
-                                  └────────┘
+                    ▲               ▲                │              │
+                    │               │                ▼              │
+                    │           ┌────────┐    记录 issues.yaml      │
+                    │           │ df-fix │◀───────────┘              │
+                    │           └────────┘                          │
+                    │                                               │
+                    └────────── roadmap 下一项 ◀────────────────────┘
 
-df-status：任意阶段保存 handoff，或在新会话用 df-status -r 恢复断点
+              df-status：任意阶段保存断点 / 新会话 df-status -r 恢复
 ```
 
-- `fast` 车道适合低风险文档、小范围局部修复，可以更快进入验收。
-- `standard` 车道适合常规多文件开发，按计划、执行、UAT、修复、验收推进。
-- `high-risk` 车道适合状态机、线上发布、数据写入、跨模块编排等任务，要求 RED 证据、防炸门禁和发布闭环。
+三种车道：
+
+- **fast**：低风险文档、小修复。流程更短，可以更快进入验收和归档。
+- **standard**：常规多文件开发。按计划、执行、UAT、修复、验收推进。
+- **high-risk**：状态机、线上发布、数据写入、跨模块编排。要求 RED 证据、防炸门禁和发布闭环。
+
+风险车道由 `df-init` 保守分诊。涉及线上对象时自动升级为 `high-risk`，不允许手工降级绕过。
+
+---
+
+## 设计理念
+
+- **状态落仓库，不落聊天记录**：目标、计划、checklist、验证证据和断点全部写进 `devflow/`。人可以直接读、改、接管。
+- **机器证据，不是文档自证**：关键门禁通过 `run-gate` 执行，结果写入 `evidence/manifest.json`。agent 手写的“已通过”不算数。
+- **计划和执行分离**：`df-plan` 完成后默认停在审阅点。你确认后才进入 `df-execute`。
+- **做一点不炸三点**：高风险任务要求先写失败测试或复现证据，再用防炸门禁覆盖影响面和回归验证。
 
 ---
 
 ## Skills 总览
 
-| Skill | 作用 | 主要产物 |
+| Skill | 做什么 | 产出什么 |
 | --- | --- | --- |
-| `df-init` | 启动 feature，收敛目标、约束、成功标准和风险车道。 | `context.md`、`state.yaml` |
-| `df-plan` | 编写人读计划、执行清单和验证方案。 | `plan.md`、`checklist.yaml`、`validation.md` |
-| `df-execute` | 按 checklist 实施任务，更新状态和证据。 | 代码改动、`evidence/manifest.json`、`handoff.md` |
+| `df-init` | 收敛目标、约束、成功标准，分诊风险车道。 | `context.md`、`state.yaml` |
+| `df-plan` | 写计划、执行清单、验证方案和防炸门禁。 | `plan.md`、`checklist.yaml`、`validation.md` |
+| `df-execute` | 按 checklist 逐项实施，更新状态和证据。 | 代码改动、`evidence/manifest.json`、`handoff.md` |
 | `df-uat` | 引导人工 UAT，记录验收问题。 | `uat.md`、`issues.yaml` |
-| `df-fix` | 修复 UAT issue，并跑回归验证。 | 修复提交、更新后的验证证据 |
-| `df-accept` | 检查完成度、UAT issue、验证证据和风险门禁，通过后归档。 | `acceptance.md`、`devflow/archive/<date-slug>/` |
-| `df-status` | 保存或恢复跨会话断点。 | `handoff.md` |
+| `df-fix` | 修复 UAT issue，跑回归门禁。 | 修复提交、更新证据 |
+| `df-accept` | 检查完成度、证据、门禁，归档 feature。 | `acceptance.md`、`devflow/archive/` |
+| `df-status` | 保存断点，或在新会话恢复上下文。 | `handoff.md` |
 
 ---
 
-## 运行时目录结构
+## 运行时目录
 
-运行 `df-init` 后，目标仓库会出现 DevFlow 工作区：
+运行 `df-init` 后，你的仓库会出现：
 
 ```text
 your-repo/
 └── devflow/
     ├── active/
-    │   └── 2026-05-01-add-login/
-    │       ├── context.md
-    │       ├── plan.md
-    │       ├── checklist.yaml
-    │       ├── validation.md
-    │       ├── state.yaml
-    │       ├── handoff.md
-    │       ├── uat.md
-    │       ├── issues.yaml
-    │       ├── acceptance.md
-    │       └── evidence/
+    │   └── 2026-05-01-add-login/     # 当前 feature
+    │       ├── context.md             # 目标、约束、成功标准
+    │       ├── plan.md                # 实施方案
+    │       ├── checklist.yaml         # 可逐项执行的任务清单
+    │       ├── validation.md          # 验证方案 + 防炸门禁
+    │       ├── state.yaml             # 当前状态和断点
+    │       ├── handoff.md             # 跨会话交接
+    │       ├── uat.md                 # UAT 记录
+    │       ├── issues.yaml            # UAT 发现的问题
+    │       ├── acceptance.md          # 验收报告
+    │       └── evidence/              # 机器证据
     │           └── manifest.json
-    ├── archive/
-    ├── roadmap.md
+    ├── archive/                       # 已归档 feature
+    ├── roadmap.md                     # 长目标 backlog
     └── shared/
-        ├── gate_registry.yaml
-        └── golden_sets/
+        ├── gate_registry.yaml         # 门禁注册表
+        └── golden_sets/               # 黄金样本
 ```
 
-这些文件是 DevFlow 的正本状态：agent 可以读，人也可以审阅、修改和接管。
+这些文件是正本状态。agent 读它们来恢复上下文，你也可以随时打开审阅或直接编辑。
 
 ---
 
-## 仓库结构
+## 适用场景
 
-```text
-.
-├── df-init/
-├── df-plan/
-├── df-execute/
-├── df-uat/
-├── df-fix/
-├── df-accept/
-├── df-status/
-└── asset/
-```
-
-每个 `df-*` 目录都是一个独立 skill，入口文件为 `SKILL.md`。
+- **AI 改代码总是做一点炸三点？** DevFlow 的防炸门禁要求先证明旧功能不坏再改。
+- **换个会话上次做到哪就忘了？** `handoff.md` + `df-status -r` 可以恢复断点。
+- **AI 说“已通过测试”但其实没跑？** `run-gate` 生成机器证据，agent 不能自说自话。
+- **想用 AI 但不敢全放手？** 计划审阅 + 人工 UAT，关键节点人在环。
+- **框架太重烧太多 token？** 约 420 行 skill 指令，不在提示词里塞一整套重型流程。
 
 ---
 

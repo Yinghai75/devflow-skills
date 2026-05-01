@@ -6,12 +6,13 @@
 
 **English** · [中文](./README.md)
 
-**A lightweight, recoverable, human-in-the-loop AI coding workflow for personal development tasks**
+**A lightweight AI coding workflow for individual developers: 7 skills, about 420 instruction lines, one complete feature lifecycle**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
   <img src="https://img.shields.io/badge/skills-7-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/workflow-DevFlow-10B981?style=flat-square" alt="Workflow"/>
+  <img src="https://img.shields.io/badge/instructions-~420-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
 </div>
@@ -20,9 +21,21 @@
 
 ## Why DevFlow
 
-There are already many AI coding workflows and specification frameworks. DevFlow targets a narrower problem: **how one developer and one coding agent can move a development task to acceptance, keep it recoverable, and archive it cleanly**.
+Many AI coding workflows solve bigger problems: specification management, team collaboration, multi-agent orchestration, and complex project governance. DevFlow aims at a narrower problem:
 
-It does not try to orchestrate a team of agents, and it does not turn every task into a heavy specification project. DevFlow stores state in your repository and uses a small set of fixed stages:
+**One developer + one coding agent, moving one development task to acceptance while keeping it recoverable and archivable.**
+
+Using a rough count from the current public repositories, the instruction footprint is very different:
+
+| Framework | Main units | Agent config | Rough instruction footprint |
+| --- | --- | --- | --- |
+| [Superpowers](https://github.com/obra/superpowers) | 14 skills | 1 agent file | about 3,200 lines |
+| [GSD](https://github.com/gsd-build/get-shit-done) | 99 workflows | 33 agent files | about 47,600 lines |
+| **DevFlow** | **7 skills** | **no bundled agent pool** | **about 420 lines** |
+
+The heavier the instruction stack, the more tokens each session burns and the easier it is for an agent to lose the thread inside long prompts. DevFlow narrows the scope: it does not try to cover every project-governance scenario; it focuses on making one feature lifecycle solid for an individual developer.
+
+It does not try to take over the whole project, and it does not turn every small request into a heavy specification process. DevFlow splits a feature into a few fixed stages:
 
 ```text
 goal capture -> plan review -> implementation and validation -> UAT loop -> final archive
@@ -30,10 +43,10 @@ goal capture -> plan review -> implementation and validation -> UAT loop -> fina
 
 The tradeoffs are deliberate:
 
-- **Less implicit context**: task state lives in the `devflow/` file tree, not only in chat history.
-- **Less workflow weight**: 7 skills organized around a feature lifecycle.
-- **Stronger recovery**: `df-status -r` restores the current feature, plan, and next step.
-- **Conservative risk control**: high-risk work requires RED evidence, blast-radius gates, and release checks.
+- **State lives in the repo**: goals, plans, checklists, validation evidence, and handoffs are written into the `devflow/` file tree.
+- **The workflow stays light**: 7 skills, about 420 `SKILL.md` instruction lines, organized around a feature lifecycle.
+- **Recovery is cheap**: run `df-status -r` in a new session to restore the current feature, plan, and next step.
+- **Risk control is conservative**: high-risk work requires RED evidence, blast-radius gates, and release checks. The agent cannot self-certify by writing "passed".
 
 ---
 
@@ -61,34 +74,21 @@ git clone https://github.com/Yinghai75/devflow-skills.git /tmp/devflow-skills-cl
 cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ```
 
-Start from a concrete development goal:
-
-```bash
-/df-init
-```
+For other agents, copy the `df-*` directories into that agent's skills directory. Each `df-*` directory is an independent skill with `SKILL.md` as its entry point.
 
 ---
 
 ## Quick Start
 
-- **New requirement**: run `/df-init` to create a feature directory and classify the risk lane.
-- **Plan the work**: run `/df-plan` to write the plan, checklist, and validation strategy, then stop for review.
-- **Implement**: run `/df-execute` to work through the checklist while updating state and evidence.
-- **Resume later**: run `/df-status -r` in a new session to restore the last handoff.
-- **Accept and archive**: run `/df-uat`, `/df-fix`, and `/df-accept` to close the UAT loop and archive the feature.
-
----
-
-## Core Design
-
-| Dimension | Heavy specification/orchestration frameworks | DevFlow |
-| --- | --- | --- |
-| Core object | specs, agents, phases, or role collaboration | one deliverable feature |
-| State location | spec directories, chat history, or agent state | repository-local `devflow/` file tree |
-| Recovery | context continuation or rereading multiple docs | `df-status -r` restores the current handoff |
-| Risk handling | usually a fixed process | automatic `fast`, `standard`, and `high-risk` lanes |
-| Validation | can drift into document-only claims | checklist, validation, evidence, and UAT issue loop |
-| Human role | often optimized toward automation | plan review and acceptance stay human-in-the-loop by default |
+```bash
+/df-init        # New requirement: create a feature directory and classify the risk lane
+/df-plan        # Decide how to build it: plan, checklist, validation, then stop for review
+/df-execute     # Build: work through the checklist and update state and evidence
+/df-status -r   # New session: restore the last handoff
+/df-uat         # User acceptance: record UAT results and issues
+/df-fix         # Fix: close UAT issues and run regression gates
+/df-accept      # Archive: check evidence and gates, then move the feature to archive/
+```
 
 ---
 
@@ -98,81 +98,88 @@ Start from a concrete development goal:
 ┌─────────┐    ┌─────────┐    ┌────────────┐    ┌────────┐    ┌───────────┐
 │ df-init │───▶│ df-plan │───▶│ df-execute │───▶│ df-uat │───▶│ df-accept │
 └─────────┘    └─────────┘    └────────────┘    └────────┘    └───────────┘
-                                      ▲              │
-                                      │              ▼
-                                  ┌────────┐    write issues.yaml
-                                  │ df-fix │◀────────┘
-                                  └────────┘
+                    ▲               ▲                │              │
+                    │               │                ▼              │
+                    │           ┌────────┐    write issues.yaml     │
+                    │           │ df-fix │◀───────────┘              │
+                    │           └────────┘                          │
+                    │                                               │
+                    └────────── next roadmap item ◀─────────────────┘
 
-df-status: save a handoff at any stage, or restore it in a new session with df-status -r
+              df-status: save a handoff at any stage / restore with df-status -r
 ```
 
-- `fast` is for low-risk docs and small local fixes.
-- `standard` is for normal multi-file development with plan, execution, UAT, fix, and acceptance.
-- `high-risk` is for state machines, production release, data writes, cross-module orchestration, and similar work; it requires RED evidence, blast-radius gates, and release checks.
+Three lanes:
+
+- **fast**: low-risk docs and small fixes. The path can be shorter.
+- **standard**: normal multi-file development. Plan, execute, UAT, fix, accept.
+- **high-risk**: state machines, production release, data writes, cross-module orchestration. Requires RED evidence, blast-radius gates, and release checks.
+
+`df-init` classifies the risk lane conservatively. Work touching online objects is automatically upgraded to `high-risk`.
+
+---
+
+## Design Principles
+
+- **State in the repo, not in chat history**: goals, plans, checklists, validation evidence, and handoffs all live under `devflow/`. A human can read, edit, or take over directly.
+- **Machine evidence, not document-only claims**: key gates run through `run-gate`, and results are written to `evidence/manifest.json`. Agent-written "passed" text is not evidence.
+- **Planning and execution are separate**: `df-plan` stops at a review point by default. You confirm before `df-execute` continues.
+- **Change one thing without breaking three**: high-risk work starts with failing tests or reproduction evidence, then uses blast-radius gates to protect existing behavior.
 
 ---
 
 ## Skills
 
-| Skill | Purpose | Main outputs |
+| Skill | What it does | What it outputs |
 | --- | --- | --- |
-| `df-init` | Start a feature and capture goals, constraints, success criteria, and risk lane. | `context.md`, `state.yaml` |
-| `df-plan` | Write a human-readable plan, checklist, and validation strategy. | `plan.md`, `checklist.yaml`, `validation.md` |
-| `df-execute` | Implement the checklist while updating state and evidence. | code changes, `evidence/manifest.json`, `handoff.md` |
-| `df-uat` | Guide manual UAT and record findings. | `uat.md`, `issues.yaml` |
-| `df-fix` | Fix UAT issues and run regression validation. | fix commits, updated evidence |
-| `df-accept` | Check completion, UAT issues, evidence, and risk gates before archiving. | `acceptance.md`, `devflow/archive/<date-slug>/` |
-| `df-status` | Save or restore a cross-session handoff. | `handoff.md` |
+| `df-init` | Capture goals, constraints, success criteria, and risk lane. | `context.md`, `state.yaml` |
+| `df-plan` | Write the plan, checklist, validation strategy, and blast-radius gates. | `plan.md`, `checklist.yaml`, `validation.md` |
+| `df-execute` | Implement checklist items while updating state and evidence. | code changes, `evidence/manifest.json`, `handoff.md` |
+| `df-uat` | Guide manual UAT and record acceptance issues. | `uat.md`, `issues.yaml` |
+| `df-fix` | Fix UAT issues and run regression gates. | fix commits, updated evidence |
+| `df-accept` | Check completion, evidence, gates, and archive the feature. | `acceptance.md`, `devflow/archive/` |
+| `df-status` | Save a handoff or restore context in a new session. | `handoff.md` |
 
 ---
 
-## Runtime File Tree
+## Runtime Directory
 
-After `df-init`, the target repository gets a DevFlow workspace:
+After `df-init`, your repository gets:
 
 ```text
 your-repo/
 └── devflow/
     ├── active/
-    │   └── 2026-05-01-add-login/
-    │       ├── context.md
-    │       ├── plan.md
-    │       ├── checklist.yaml
-    │       ├── validation.md
-    │       ├── state.yaml
-    │       ├── handoff.md
-    │       ├── uat.md
-    │       ├── issues.yaml
-    │       ├── acceptance.md
-    │       └── evidence/
+    │   └── 2026-05-01-add-login/     # current feature
+    │       ├── context.md             # goals, constraints, success criteria
+    │       ├── plan.md                # implementation plan
+    │       ├── checklist.yaml         # executable task checklist
+    │       ├── validation.md          # validation strategy + blast-radius gates
+    │       ├── state.yaml             # current state and checkpoint
+    │       ├── handoff.md             # cross-session handoff
+    │       ├── uat.md                 # UAT notes
+    │       ├── issues.yaml            # issues found during UAT
+    │       ├── acceptance.md          # acceptance report
+    │       └── evidence/              # machine evidence
     │           └── manifest.json
-    ├── archive/
-    ├── roadmap.md
+    ├── archive/                       # archived features
+    ├── roadmap.md                     # long-goal backlog
     └── shared/
-        ├── gate_registry.yaml
-        └── golden_sets/
+        ├── gate_registry.yaml         # gate registry
+        └── golden_sets/               # golden samples
 ```
 
-These files are DevFlow's source of truth: the agent can read them, and you can review, edit, or take over at any time.
+These files are the source of truth. The agent reads them to recover context, and you can open, review, or edit them directly.
 
 ---
 
-## Repository Layout
+## When It Helps
 
-```text
-.
-├── df-init/
-├── df-plan/
-├── df-execute/
-├── df-uat/
-├── df-fix/
-├── df-accept/
-├── df-status/
-└── asset/
-```
-
-Each `df-*` directory is an independent skill with `SKILL.md` as its entry point.
+- **AI changes one thing and breaks three?** Blast-radius gates force old behavior to be protected before changing new behavior.
+- **A new session forgets where the task stopped?** `handoff.md` plus `df-status -r` restores the checkpoint.
+- **The agent says "tests passed" but did not run them?** `run-gate` produces machine evidence; text claims do not count.
+- **You want AI help but not full autopilot?** Plan review and manual UAT keep human control at key points.
+- **Heavy workflows burn too much context?** About 420 skill instruction lines keep the workflow compact.
 
 ---
 
