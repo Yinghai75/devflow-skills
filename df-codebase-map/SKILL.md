@@ -1,105 +1,109 @@
 ---
 name: df-codebase-map
-description: "生成、刷新和检查 DevFlow 原生 codebase map；正本位于 devflow/shared/codebase_map/，只服务实现层导航，不替代 framework-truth-guard。"
+description: "维护仓库 codebase map（OVERVIEW + 模块卡片）；由 df-plan/df-execute/df-fix/df-accept 自动调用，通常不需要手动执行。"
 metadata:
-  short-description: "维护 DevFlow codebase map"
+  short-description: "维护 codebase map"
 ---
 
 # df-codebase-map
 
-维护 DevFlow 原生 codebase map。所有沟通与产物使用简体中文，时间按北京时间。
-
-## 定位
-
-- 正本只在 `devflow/shared/codebase_map/`。
-- 只回答实现层问题：代码在哪、现有模式是什么、接口触点在哪里、哪些区域易炸、相关门禁是什么。
-- 不读取、不依赖、不迁移 `.planning/codebase/*`。
-- 不替代 `framework-truth-guard`；涉及主链、长尾链、官网子链、`nas-agent`、`erp-executor`、容器职责边界、状态机或跨模块编排时，先使用 `framework-truth-guard`。
-
-冲突优先级：
-
-`docs/design/system_framework_truth.md` > `docs/design/module_maps/*.md` > DevFlow codebase map > 局部代码观察
-
-如果发现 map 与系统框架真相或模块地图冲突，只能记录冲突、要求补文档或阻断；不得用 map 覆盖系统边界。
+维护 `devflow/shared/codebase_map/` 下的仓库全景索引和模块卡片。正本只在该目录。
 
 ## 结构
 
-- `devflow/shared/codebase_map/manifest.yaml`
-- `devflow/shared/codebase_map/units/*.md`
+```
+devflow/shared/codebase_map/
+├── OVERVIEW.md          ← 永远加载（≤30行）：目录 atlas + 依赖图 + 卡片索引
+└── modules/
+    ├── material-server.md
+    ├── erp-executor.md
+    ├── edge-plugin.md
+    ├── dify-workflows.md
+    ├── deploy.md
+    ├── scripts-gates.md
+    └── brand-rules.md
+```
 
-`manifest.yaml` 必须包含：
+- `OVERVIEW.md`：仓库全景，df-* skills 每次都读。内容：目录 atlas（每个顶层目录一行）、模块依赖图（文本箭头）、模块卡片索引（卡片名 + 覆盖路径前缀）。
+- `modules/*.md`：每张卡片 ≤30 行，固定 3 节：关键文件、边界与风险、惯例与测试。
+- golden set 不放入 map，只存指针。
+- codebase map 不是系统真相源；与 `docs/design/system_framework_truth.md` 冲突时以后者为准。
 
-- `owner: devflow`
-- `generated_at_bj`
-- `source_commit`
-- `scope_index`
-- `units`
-- `stale_if_changed`
-- `not_source_of_truth_for_framework: true`
+## 触发方与操作类型
 
-每个 unit 不超过 200 行，且包含：
+| 调用方 | 操作 | 说明 |
+|--------|------|------|
+| `df-plan` | **只读** OVERVIEW + 命中模块卡片；**补建**缺失卡片 | plan 不碰代码，不刷新 |
+| `df-execute` | checklist 项完成后 **增量刷新** 修改命中的卡片 | 写代码的环节负责刷新 |
+| `df-fix` | git checkpoint 后 **增量刷新** 修改命中的卡片 | 写代码最多的环节 |
+| `df-accept` | **最终 stale gate**，检查命中卡片是否已刷新 | 兜底检查 |
+| 用户手动 | **全量重建** 或 **指定卡片刷新** | 极少使用 |
 
-- `## Scope`
-- `## Structure`
-- `## Patterns`
-- `## Interfaces`
-- `## Risks`
-- `## Recommended Gates`
+## 只读消费（df-plan / df-fix 分流）
 
-## 场景
+1. 读 `OVERVIEW.md`。
+2. 从当前任务的 `paths`/`surfaces` 推导命中哪些模块卡片（按 OVERVIEW 的卡片索引匹配路径前缀）。
+3. 只读命中的卡片，不读其他。
+4. 如果某路径前缀无对应卡片 → 补建新卡片（按 5 节模板扫描该路径）。
+5. 在调用方文档记录 `map_modules_read: [material-server, edge-plugin]`。
 
-### 检查场景
+## 增量刷新（df-execute / df-fix）
 
-由 `df-init`、`df-plan`、`df-accept` 触发。
+每次 git checkpoint 后：
 
-1. 读取 `manifest.yaml`，不要全文读取 `units/`。
-2. 根据调用方给出的 `paths`、`surfaces`、`target_env` 推导 scope。
-3. 判断 scope 是否有命中 unit，判断 `source_commit` 与当前 `git rev-parse HEAD` 是否一致。
-4. 判断目标路径是否命中 `stale_if_changed` 或 unit 覆盖范围。
-5. 返回：命中 units、缺失 scope、过期原因、是否允许 waiver。
+1. 从 `git diff --name-only HEAD~1 HEAD`（或 stash diff）获取本轮修改文件。
+2. 按 OVERVIEW 的卡片索引匹配修改路径 → 确定命中哪些卡片。
+3. 对命中的卡片：重新扫描该模块目录，更新卡片的 5 节内容。
+4. 如果修改涉及新增顶层目录或新增模块 → 同时更新 OVERVIEW 的目录 atlas 和卡片索引。
+5. 未命中任何卡片的修改 → 不做（下次 plan 补建）。
 
-### 按 scope 生成或刷新
+## 最终 stale gate（df-accept）
 
-调用方必须提供 `paths`、`surfaces`、`target_env`。只刷新命中的 units，不生成大而全全文 map。
+1. 汇总整个 feature 的所有修改路径。
+2. 检查命中的卡片是否已被 execute/fix 刷新过（对比卡片最后修改时间与 feature 最后 checkpoint 时间）。
+3. 已刷新 → 通过。未刷新 → 刷新或写 waiver。
+4. 检查 OVERVIEW 是否需要更新（新增了目录/模块）。
 
-生成时必须读取：
+## 全量重建（用户手动或首次使用）
 
-- `AGENTS.md`
-- `devflow/shared/gate_registry.yaml`
-- 目标 scope 下的代码、测试、配置、接口文件
-- 命中系统边界时，先读取 `docs/design/system_framework_truth.md` 和相关 `docs/design/module_maps/*.md`
+`$df-codebase-map --full` 或首次 `$df-plan` 发现无 OVERVIEW 时：
 
-生成后更新：
+1. 扫描仓库顶层目录和主要代码目录。
+2. 生成 `OVERVIEW.md`。
+3. 为每个主要模块生成卡片。
+4. 提交。
 
-- `manifest.yaml.generated_at_bj`
-- `manifest.yaml.source_commit`
-- `manifest.yaml.scope_index`
-- `manifest.yaml.units`
-- `manifest.yaml.stale_if_changed`
-- 对应 `units/*.md`
+## 行数硬限
 
-### 全量刷新
+| 文件 | 上限 | 超限处理 |
+|------|------|---------|
+| `OVERVIEW.md` | **30 行** | 每个模块只允许表格一行（路径前缀 + 用途 + 卡片）；依赖图不超过 6 行 |
+| 每张模块卡片 | **30 行** | 关键文件最多 7 个；边界与风险最多 7 条；惯例与测试最多 4 条 |
 
-仅用户明确要求“刷新全部 codebase map”或 map 严重缺失时使用。仍按 scope 拆 unit，禁止写一个大而全地图。
+生成或刷新后如果超限，必须先砍到限额内再提交。砍的优先级：泛泛之谈 > 显而易见的风险 > 非核心文件 > 次要惯例。
 
-## Consumption
+## 卡片模板（3 节，不允许增加节）
 
-固定消费顺序：
+```markdown
+# <模块名>
 
-`manifest.yaml → scope 命中的 units → local files`
+## 关键文件
+- `<文件>`（大小）— 一句话说明
+（最多 6 项，只列核心入口和高风险文件）
 
-禁止把整个 `devflow/shared/codebase_map/` 当上下文包全文读取。
+## 边界与风险
+- 谁调用谁、受保护接口、改了会炸的地方
+（最多 6 条，合并边界和风险，不分开写）
 
-## Stale 规则
+## 惯例与测试
+- 命名约定、模式、测试路径、门禁
+（最多 3 条，只写这个模块独有的，不写通用知识）
+```
 
-- 修改路径命中某 unit 覆盖范围，该 unit 过期。
-- 修改 `AGENTS.md`、`docs/design/system_framework_truth.md`、`docs/design/module_maps/*.md`，相关风险/接口 unit 过期。
-- 修改 `devflow/shared/gate_registry.yaml`，含推荐门禁的相关 units 过期。
-- 修改跨模块接口、Dify workflow、容器配置、插件/Broker/执行器链路，相关接口 unit 过期。
+## 精炼规则
 
-## 写入要求
-
-- unit 的 `Recommended Gates` 只能推荐候选；最终门禁必须来自 `devflow/shared/gate_registry.yaml`。
-- `manifest.yaml.scope_index` 必须能支持按 paths、surfaces、target_env 找到 unit。
-- `units[].line_count` 要反映实际行数；超过 200 行必须拆分。
-- 每次刷新要在调用方文档记录 `map_units_read` 或刷新/豁免结果。
+- 卡片只写**代码事实**（文件做什么、谁调用谁、改了跑什么测试），不写**设计决策**（状态归属、职责边界、禁止模式）。设计决策属于 `system_framework_truth.md`，卡片只写指针。
+- 不写 LLM 本来就知道的（如"巨文件改动容易冲突"、"日志使用 logging"）。
+- 不复述 `system_framework_truth.md`、`gate_registry.yaml` 或 golden set 的内容，只引用路径。
+- 不全文读取所有卡片（除非全量重建）。
+- 每条 bullet 必须包含具体文件名、接口名或命令；纯描述性文字不算有效 bullet。

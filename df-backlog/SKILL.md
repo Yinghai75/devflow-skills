@@ -15,7 +15,7 @@ metadata:
 - 不创建 `devflow/active/` 目录。
 - 不生成 `plan.md`、`checklist.yaml`、`validation.md`。
 - 不写入当前 feature 的 `issues.yaml`，除非用户明确说这是当前 UAT 缺陷；那应改用 `$df-uat`。
-- 不直接实现新 feature；启动时用 `$df-init`。
+- 不直接实现新 feature；启动时用 `$df-plan`。
 
 ## 流程
 

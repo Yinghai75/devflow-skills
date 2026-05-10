@@ -33,7 +33,11 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
    - 更新 `handoff.md`。
    - 若该项形成可独立验证的代码/文档改动，检查 `git status --short`，只暂存相关文件并做一个小提交；不得混入无关改动或用户明确保留的不提交文件。
    - 若该项验证失败但已改代码，先 `git stash push -m "df-execute-wip-<item-id>-<时间戳>"` 保存现场并把 hash 写入 `handoff.md`，再继续修复或回退。
+   - 改了门禁脚本、状态码语义或接口契约后，检查 checklist/validation/handoff/issues 是否仍有重复描述；未清理前不得标记该项完成。
    - 禁止连续两个 checklist 项之间没有任何 git checkpoint。
+   - 检查本项修改路径是否命中 `codebase_map/OVERVIEW.md` 卡片索引中的模块；命中则增量刷新对应模块卡片（`modules/*.md`），不做全量刷新。
+   - 本项改动涉及模块接口、状态归属或职责边界时，同步更新 `docs/design/system_framework_truth.md` 或对应 module_map。
+   - 本项实现了行为变更时，将新的输入/输出样本存入 `devflow/shared/golden_sets/`；已有样本因行为变更失效时同步更新。
 6. 高风险或跨模块改动按“可验证防炸门禁”分组提交；每个提交都应对应清晰的实现边界和验证证据。
 7. 按 `validation.md` 跑对应门禁。凡是注册在 `devflow/shared/gate_registry.yaml` 的关键门禁，必须通过脚本执行：
    `uv run python /Users/yinghai/.codex/local/devflow/devflow_cli.py --repo <repo> run-gate <gate-id>`

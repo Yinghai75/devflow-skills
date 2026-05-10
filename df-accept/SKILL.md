@@ -17,14 +17,15 @@ metadata:
 4. `issues.yaml` 中不得存在同一失败面的重复 UAT 串；先合并口径或标注 `duplicate_of` / `related_issue` 后再验收。
 5. 高风险任务必须选择有效防炸门禁；只跑 smoke test 不算。
 6. 高风险新增逻辑必须有 RED 证据、失败样本或历史故障复现说明。
-7. 若改动影响系统框架正本，相关设计文档已同步更新。
-8. 若 `target_env` 为 `dev-full`/`online`，或任务涉及 Dify 发布、容器、线上对象，发布闭环检查项必须完成：发布、自检、生效确认三类证据都要写入 checklist/validation/handoff。
-9. 归档前检查 `git status --short`：工作区应干净，或只剩用户明确要求保留的不提交改动；DevFlow 归档移动本身也应提交。
-10. 若当前 feature 属于 `devflow/roadmap.md` 中的长目标，归档前必须更新 roadmap：标记当前 feature 完成、保留或调整后续 feature backlog，并在回复里说明下一项建议；不得把 POC 完成表述为整体目标完成。
-11. `uat.md` 必须覆盖所有用户可见新能力、真实浏览器路径、外部站点路径、插件回流、Dify 发布生效和 ERP 写入审计路径；没有人工 UAT 通过记录时，必须有明确 waiver、残余风险和后续归属。
-12. 对真实环境高风险路径，`uat.md` 或 `handoff.md` 必须写清最小“验证画像”：入口路径、客户端/浏览器、profile/登录态来源、目标环境、样本类型；否则不得把后续不同路径的验证结果视为等价复测。
-13. 验收前汇总本 feature 修改路径，使用 `df-codebase-map` 读取 `manifest.yaml.stale_if_changed` 和命中 unit 覆盖范围；命中过期 unit 时，必须刷新对应 scope 或写 waiver。
-14. `acceptance.md` 必须记录 `codebase_map_checked`、`codebase_map_refreshed`、`codebase_map_waiver`。未刷新且无 waiver，不得归档。
+7. 若 `target_env` 为 `dev-full`/`online`，或任务涉及 Dify 发布、容器、线上对象，发布闭环检查项必须完成：发布、自检、生效确认三类证据都要写入 checklist/validation/handoff。
+8. 归档前检查 `git status --short`：工作区应干净，或只剩用户明确要求保留的不提交改动；DevFlow 归档移动本身也应提交。
+9. 若当前 feature 属于 `devflow/roadmap.md` 中的长目标，归档前必须更新 roadmap：标记当前 feature 完成、保留或调整后续 feature backlog，并在回复里说明下一项建议；不得把 POC 完成表述为整体目标完成。
+10. `uat.md` 必须覆盖所有用户可见新能力、真实浏览器路径、外部站点路径、插件回流、Dify 发布生效和 ERP 写入审计路径；没有人工 UAT 通过记录时，必须有明确 waiver、残余风险和后续归属。
+11. 对真实环境高风险路径，`uat.md` 或 `handoff.md` 必须写清最小“验证画像”：入口路径、客户端/浏览器、profile/登录态来源、目标环境、样本类型；否则不得把后续不同路径的验证结果视为等价复测。
+12. 验收前汇总本 feature 修改路径，对照 `codebase_map/OVERVIEW.md` 卡片索引确定命中的模块卡片；检查命中卡片是否已被 execute/fix 刷新，未刷新则刷新或写 waiver。如有新增目录/模块，同步更新 OVERVIEW。
+13. 本 feature 涉及模块接口、状态归属或职责边界变更时，检查 `system_framework_truth.md` 和对应 module_map 是否已被 execute/fix 同步更新；未更新则更新或写 waiver。
+14. 本 feature 涉及行为变更时，检查 `devflow/shared/golden_sets/` 中受影响的样本是否已更新；golden 门禁是否已跑且样本与当前代码一致。
+15. `acceptance.md` 必须记录 `codebase_map_checked`、`truth_doc_checked`、`golden_set_checked` 及各自的 refreshed/waiver 状态。未完成不得归档。
 
 ## 脚本门禁
 
@@ -40,7 +41,7 @@ metadata:
 
 脚本通过前后都必须做一次人工 UAT 覆盖审计；当前 CLI 只能检查 checklist、issue 和 manifest，不能判断“实现了某个真实用户路径但没做人工 UAT”。发现覆盖缺口时，即使脚本通过也不得归档。
 
-脚本通过前后也必须做 codebase map stale gate；当前 CLI 只生成初始 map 目录，不会替 agent 自动判断所有 scope 过期。发现 map 覆盖缺口或过期 unit 时，即使脚本通过也不得归档。
+脚本通过前后也必须做 codebase map / truth doc / golden set 三项 stale gate（检查项 12-14）；CLI 不会自动判断过期，agent 必须主动检查。发现缺口时即使脚本通过也不得归档。
 
 若 standard 车道没有选择门禁，且 `validation.md` 仍是初始模板，脚本会给出非阻断警告。看到该警告时应补上实际验证记录；不要把 warning 当成防炸门禁。
 
@@ -80,5 +81,5 @@ agent 自己写入的 `validation_evidence: 已通过` 只算说明文字，不�
 
 ## 下一步
 
-- 归档成功且 `devflow/roadmap.md` 有后续 feature 时，提示下一项 feature，并建议用 `$df-init` 继续。
+- 归档成功且 `devflow/roadmap.md` 有后续 feature 时，提示下一项 feature，并建议用 `$df-plan` 继续。
 - 归档成功且无后续 backlog 时，明确说明 feature 已归档、当前 DevFlow 任务无后续项。

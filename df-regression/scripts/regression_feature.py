@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DevFlow 已归档 feature 回归辅助工具。"""
+"""DevFlow archive feature regression helper."""
 
 from __future__ import annotations
 
