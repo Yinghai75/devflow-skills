@@ -9,6 +9,18 @@ metadata:
 
 按当前 feature 的 `checklist.yaml` 执行任务。每一步完成后更新状态与断点。
 
+## 启动硬闸
+
+`df-execute` 只能在用户显式要求执行时启动。显式授权包括用户消息中出现 `$df-execute`、`df-execute`、`执行`、`按 checklist 做`、`继续执行`、`直接执行`、`全自动推进` 等明确执行语义。
+
+Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh context” 或类似句子不算执行授权；如果上一阶段是 `$df-plan`，该句只表示允许落盘计划产物。此时必须停在计划审阅点，不得改业务代码、不得跑发布、不得执行 UAT、不得提交代码。
+
+启动前必须读取当前 feature 的 `state.yaml`：
+
+- 只有 `status: planned` 或 `status: ready_for_execute` 才可进入执行；若仍是 `planning`，先回到 `$df-plan` 补齐计划产物。
+- 若存在 `execution_authorized: false`，且当前用户消息没有显式执行授权，必须停止并告知用户需要发送 `$df-execute` 或明确“执行”。
+- 真正开始执行时，先把 `state.yaml` 更新为 `status: executing`，并记录本轮执行授权来源；不得只凭 proposed plan 或系统自动句进入执行。
+
 ## 流程
 
 1. 读取 active feature 的 `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`state.yaml`。
@@ -20,6 +32,8 @@ metadata:
    - 更新 `state.yaml` 的 `current_step`；高风险 RED 证据可写入 `red_evidence`。
    - 更新 `handoff.md`。
    - 若该项形成可独立验证的代码/文档改动，检查 `git status --short`，只暂存相关文件并做一个小提交；不得混入无关改动或用户明确保留的不提交文件。
+   - 若该项验证失败但已改代码，先 `git stash push -m "df-execute-wip-<item-id>-<时间戳>"` 保存现场并把 hash 写入 `handoff.md`，再继续修复或回退。
+   - 禁止连续两个 checklist 项之间没有任何 git checkpoint。
 6. 高风险或跨模块改动按“可验证防炸门禁”分组提交；每个提交都应对应清晰的实现边界和验证证据。
 7. 按 `validation.md` 跑对应门禁。凡是注册在 `devflow/shared/gate_registry.yaml` 的关键门禁，必须通过脚本执行：
    `uv run python /Users/yinghai/.codex/local/devflow/devflow_cli.py --repo <repo> run-gate <gate-id>`

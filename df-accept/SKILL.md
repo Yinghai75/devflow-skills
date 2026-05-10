@@ -14,12 +14,17 @@ metadata:
 1. `checklist.yaml` 全部完成或明确 waiver。
 2. `validation.md` 中关键门禁已有执行证据，且 feature 内存在机器生成的 `evidence/manifest.json` 与日志。
 3. `issues.yaml` 中 UAT issue 已关闭，或明确转入 `devflow/issues/`。
-4. 高风险任务必须选择有效防炸门禁；只跑 smoke test 不算。
-5. 高风险新增逻辑必须有 RED 证据、失败样本或历史故障复现说明。
-6. 若改动影响系统框架正本，相关设计文档已同步更新。
-7. 若 `target_env` 为 `dev-full`/`online`，或任务涉及 Dify 发布、容器、线上对象，发布闭环检查项必须完成：发布、自检、生效确认三类证据都要写入 checklist/validation/handoff。
-8. 归档前检查 `git status --short`：工作区应干净，或只剩用户明确要求保留的不提交改动；DevFlow 归档移动本身也应提交。
-9. 若当前 feature 属于 `devflow/roadmap.md` 中的长目标，归档前必须更新 roadmap：标记当前 feature 完成、保留或调整后续 feature backlog，并在回复里说明下一项建议；不得把 POC 完成表述为整体目标完成。
+4. `issues.yaml` 中不得存在同一失败面的重复 UAT 串；先合并口径或标注 `duplicate_of` / `related_issue` 后再验收。
+5. 高风险任务必须选择有效防炸门禁；只跑 smoke test 不算。
+6. 高风险新增逻辑必须有 RED 证据、失败样本或历史故障复现说明。
+7. 若改动影响系统框架正本，相关设计文档已同步更新。
+8. 若 `target_env` 为 `dev-full`/`online`，或任务涉及 Dify 发布、容器、线上对象，发布闭环检查项必须完成：发布、自检、生效确认三类证据都要写入 checklist/validation/handoff。
+9. 归档前检查 `git status --short`：工作区应干净，或只剩用户明确要求保留的不提交改动；DevFlow 归档移动本身也应提交。
+10. 若当前 feature 属于 `devflow/roadmap.md` 中的长目标，归档前必须更新 roadmap：标记当前 feature 完成、保留或调整后续 feature backlog，并在回复里说明下一项建议；不得把 POC 完成表述为整体目标完成。
+11. `uat.md` 必须覆盖所有用户可见新能力、真实浏览器路径、外部站点路径、插件回流、Dify 发布生效和 ERP 写入审计路径；没有人工 UAT 通过记录时，必须有明确 waiver、残余风险和后续归属。
+12. 对真实环境高风险路径，`uat.md` 或 `handoff.md` 必须写清最小“验证画像”：入口路径、客户端/浏览器、profile/登录态来源、目标环境、样本类型；否则不得把后续不同路径的验证结果视为等价复测。
+13. 验收前汇总本 feature 修改路径，使用 `df-codebase-map` 读取 `manifest.yaml.stale_if_changed` 和命中 unit 覆盖范围；命中过期 unit 时，必须刷新对应 scope 或写 waiver。
+14. `acceptance.md` 必须记录 `codebase_map_checked`、`codebase_map_refreshed`、`codebase_map_waiver`。未刷新且无 waiver，不得归档。
 
 ## 脚本门禁
 
@@ -33,6 +38,10 @@ metadata:
 
 归档脚本通过后再次检查 `git status --short`，只暂存归档相关路径并提交；若还有业务改动未提交，先回到 `$df-execute` 或 `$df-fix` 分组提交，不要把未归档业务改动混进归档提交。
 
+脚本通过前后都必须做一次人工 UAT 覆盖审计；当前 CLI 只能检查 checklist、issue 和 manifest，不能判断“实现了某个真实用户路径但没做人工 UAT”。发现覆盖缺口时，即使脚本通过也不得归档。
+
+脚本通过前后也必须做 codebase map stale gate；当前 CLI 只生成初始 map 目录，不会替 agent 自动判断所有 scope 过期。发现 map 覆盖缺口或过期 unit 时，即使脚本通过也不得归档。
+
 若 standard 车道没有选择门禁，且 `validation.md` 仍是初始模板，脚本会给出非阻断警告。看到该警告时应补上实际验证记录；不要把 warning 当成防炸门禁。
 
 ## 阻断规则
@@ -45,8 +54,27 @@ metadata:
 - 已选择关键门禁但没有通过 `run-gate` 生成的通过证据。
 - 任一门禁在 manifest 中记录为 failed。
 - 固定 checklist 项没有完成或 waiver，包括设计文档同步检查、发布闭环适用性检查。
+- `uat.md` 仍是初始模板、只有泛泛人工验收记录，或缺少核心用户可见路径的人工 UAT/waiver。
 
 agent 自己写入的 `validation_evidence: 已通过` 只算说明文字，不算通过证据。
+
+## UAT 覆盖审计
+
+归档前从 `checklist.yaml`、`validation.md`、`handoff.md`、`issues.yaml`、`uat.md` 做交叉检查：
+
+- checklist 中每个用户可见能力是否在 `uat.md` 有对应项。
+- Golden Set Delta 中每个新增样本是否有自动证据，且真实用户路径是否有人工 UAT 或 waiver。
+- 涉及真实 Microsoft Edge、官网页面、本机插件、Dify WebApp、ERP 写入审计的路径是否有真实环境步骤和结果。
+- 已关闭 UAT issue 是否有复测记录，不只是“测试/构建通过”。
+- 是否把 fixture、mock、curl、DSL check、run-gate 当成真实人工 UAT 通过。
+
+若发现缺口：
+
+- 不归档。
+- 在回复中明确列出缺口和对应能力。
+- 回到 `$df-uat` 补人工 UAT 引导，或回到 `$df-plan` 补 `uat.md` 覆盖矩阵。
+- 只有用户明确接受 waiver 时，才可把缺口记录为 waiver；高风险核心能力 waiver 必须同步写入 roadmap 或后续 backlog。
+- 若缺口是“历史 GREEN 没写清验证画像”，先补文档和证据口径，再决定是否需要重新做同路径 UAT。
 
 注意：`df-accept` 通过只代表 DevFlow feature 可以归档。对于目标环境为 `online` 的任务，未完成项目 runbook 要求的发布闭环、线上自检和生效确认前，不得要求用户复测，也不得宣称功能已上线可验证。
 

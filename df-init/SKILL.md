@@ -27,10 +27,16 @@ metadata:
    - `high-risk`：状态机、Dify workflow、数据写入、登录/权限、线上发布、共享 runtime、跨模块编排。
 6. 判断目标环境：默认 `local`；本地快速联调用 `dev-fast`，本地完整复刻用 `dev-full`，线上/FZNAS/Dify 线上对象用 `online`。`online` 会自动升级为 `high-risk`。
 7. 分诊必须保守：即使用户或 agent 传入 `standard`，只要标题、目标、surfaces、paths 或 target_env 命中高风险面，脚本会自动升级为 `high-risk`；不要手工降级绕过。
-8. 运行脚本创建目录：
+8. 推导 `feature_scope`：至少包含用户目标、`paths`、`surfaces`、`target_env` 和最终 lane。
+9. 使用 `df-codebase-map` 检查 `devflow/shared/codebase_map/manifest.yaml`：
+   - `standard`/`high-risk`：scope 缺失或过期时，先按 scope 刷新命中的 units。
+   - `fast`：可 waiver，但必须在 `context.md` 写明理由、残余风险和后续补 scope 条件；不得因 waiver 降级高风险。
+   - 命中系统边界时，先 `framework-truth-guard`，再 scoped codebase map。
+10. 运行脚本创建目录：
    `uv run python /Users/yinghai/.codex/local/devflow/devflow_cli.py --repo <repo> start "<标题>" --lane <lane> --goal "<目标>" --surfaces "<影响面>" --paths "<相关路径>" --target-env <local|dev-fast|dev-full|online>`
-9. 读取生成的 `state.yaml` 确认最终 lane；如果被升级为 `high-risk`，回复中明确说明升级依据。
-10. 回复 feature 目录路径、它在 `devflow/roadmap.md` 中的位置、后续 backlog 摘要，并说明下一步应运行 `$df-plan`。
+11. 读取生成的 `state.yaml` 确认最终 lane；如果被升级为 `high-risk`，回复中明确说明升级依据。
+12. 更新 `context.md` 的 codebase map 区块：`codebase_map_scope`、`map_units_read`、`codebase_map_commit`、`codebase_map_waiver`。
+13. 回复 feature 目录路径、它在 `devflow/roadmap.md` 中的位置、后续 backlog 摘要，并说明下一步应运行 `$df-plan`。
 
 ## 产物
 
@@ -47,6 +53,8 @@ metadata:
 - `acceptance.md`
 - `devflow/roadmap.md`（仅当输入是长目标或跨多个 feature 的 plan 时维护）
 - `devflow/shared/gate_registry.yaml`
+- `devflow/shared/codebase_map/manifest.yaml`
+- `devflow/shared/codebase_map/units/`
 - `devflow/shared/golden_sets/`
 
 不要复用 `.planning/` 作为 DevFlow 正本。
