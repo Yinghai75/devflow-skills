@@ -9,7 +9,7 @@ metadata:
 围绕当前 feature 的 `issues.yaml` 修复 UAT issue。
 ## 强制接管
 - 当前 feature 存在 open UAT issue 时，禁止“顺手修”实现文件；必须先进入本 skill。
-- 从 `$df-uat` 登记 `critical/high` issue、阻断 UAT 的 issue，或用户要求修刚登记的 UAT issue 时，立即停止 UAT 并切到 `$df-fix <issue-id>`。
+- 从 `$df-uat` 转修前，必须先完成本轮反馈 intake 并明确 issue id；用户要求修刚登记的 UAT issue 时，切到 `$df-fix <issue-id>`。
 - 先读取 `issues.yaml` 并明确目标 issue id；没有目标 id 时只能调查和登记 issue，不能改实现文件。
 - 已先做补丁但未完成本流程时，不得声明完成；必须补齐真实 RED、修复验证、门禁和 DevFlow 记录后才允许关闭 issue。
 - 本 skill 闭环优先级高于继续 UAT；关闭 issue 后再回 `$df-uat`。
@@ -34,7 +34,10 @@ AI 有 computer use 能力，可操作真实 Edge 浏览器和容器；但跨 3+
 强制判定问题：
 - `q1_causal_chain`：描述从最上游源头到用户可见症状的因果链、当前修复点位置、是否能改在更上游；必须写清已通过/已失败/未验证的链路段，以及运行态是否已加载本轮代码。
 - `q2_regression_list`：列出本次修改可能影响的已通过 UAT issue 和用户可见硬契约；跨不同功能区域时升级 `high-risk-fix`。
-- `q3_platform_assumptions`：列出对 Dify/React/Edge/浏览器 API 等平台行为的假设，标注已实测/已查文档/未验证；含未验证假设时不得进入 `fast-fix` 或 `scoped-fix`。
+- `q3_platform_assumptions`：列出对平台/API/DSL/权限/配置/跨模块契约的假设，标注已实测/已查文档/未验证；含未验证假设时不得进入 `fast-fix` 或 `scoped-fix`。
+- hard q3 仅在修复依赖新增或改变上述用法时触发；不要求全库扫描，只查相关文件、相邻模块、codebase map 命中模块或调用链近邻。
+- hard q3 证据仅限近邻精确既有模式、官方文档或 runtime probe；mock 单测不能证明平台能力存在。
+- 找不到证据时写 `unverified_platform_use`，只能调查或加 probe，不得实现。
 
 `q1/q2/q3` 应体现 codebase map 中的结构、接口和风险，但不新增额外必填字段。map 命中风险不自动等于 `high-risk-fix`；scope 外风险只登记为 `scope_expansion_request`，不能直接扩大改动。
 
@@ -53,6 +56,28 @@ AI 有 computer use 能力，可操作真实 Edge 浏览器和容器；但跨 3+
 
 ## fast-fix 快速路径
 当 `fix_lane=fast-fix` 时只走 4 步：确认 issue 并写 1 行 `q1_causal_chain`；改代码并跑 targeted test；只暂存相关文件做原子提交；关闭 `issues.yaml` 后回 `$df-uat`。验证失败立即升级 `scoped-fix` 走标准流程，不需要读取全部 plan/validation/handoff 或写运行态证据分级。
+
+## 子代理使用
+
+主代理保留 issue 判定、车道分流、`q1/q2/q3`、止损、关闭 issue、UAT 结论和最终回复；子代理只做边界清楚的定位、窄补丁和验证。
+
+### 分派规则
+
+- `fast-fix` 默认不 spawn；除非需要跨多文件搜索定位。
+- 主代理直接执行的默认条件：≤ 2 文件且 ≤ 30 行且不需要搜索定位。
+- 搜索、定位、比较、历史证据梳理 → spawn `explorer`。
+- `scoped-fix` 中根因明确且实现代码 > 2 文件或 > 30 行 → spawn `executor`（回退 `worker`）。
+- `high-risk-fix` 未写 `lane_downgrade_reason` 或 `narrow_patch_reason` 前，只能 spawn `explorer` / `verifier`，不得 spawn 写业务代码的子代理。
+- `integration-debug` 只能 spawn 只读 `explorer`；如需写入，仅允许 `executor` 添加探针，不得改业务逻辑。
+- 跑门禁、审查 diff、复核运行态 gate → spawn `verifier`。
+- 触发止损、影响面超过当前 plan、或需要重设计 → 回 `$df-plan`；必要时 spawn `planner`，不得继续派 executor 补丁。
+
+### 并发
+
+- 并发只用于只读任务，或写入边界完全不重叠的窄补丁。
+- 同一用户可见失败面的核心修复不得并发多个 executor。
+- 默认 `fork_context=false`，只传最小上下文包。
+- 子代理完成且不再复用时必须回收。
 
 ## 流程
 以下流程适用于 `scoped-fix` 和 `high-risk-fix`；`integration-debug` 只能加探针/读证据，`fast-fix` 走快速路径。

@@ -53,6 +53,8 @@ metadata:
 
 计划写明预期 git 提交分组；高风险/跨模块不得把无关改动合进同一提交。`plan.md` 只规划本 feature，后续 feature 保留在 `roadmap.md`。
 
+`checklist.yaml` 和 `validation.md` 中涉及门禁行为、状态码语义或接口契约的描述，必须用引用格式（脚本路径 + 通过/失败条件行号），禁止用自然语言重新描述脚本逻辑。
+
 `checklist.yaml` 固定检查项（除非 waived）：设计文档同步、发布闭环适用性、唯一事实源（禁止自然语言复述门禁逻辑）。
 
 ## 第四步：UAT 覆盖矩阵与 Blast Radius Guard

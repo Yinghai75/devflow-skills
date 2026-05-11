@@ -29,8 +29,9 @@ metadata:
    - 越界试测：按"非当前 UAT 项反馈"处理。
 6. 需要记录 issue 前，必须先执行"Issue 去重与重开规则"；只有确认不是既有 issue 的同一用户可见问题，才运行：
    `uv run python /Users/yinghai/.codex/local/devflow/devflow_cli.py --repo <repo> uat "<标题>" "<现象>" --severity <low|medium|high|critical>`
-7. 回复生成的 issue id，并按"Issue 后续判定"明确是自动进入 `$df-fix <issue-id>`，还是继续下一项 UAT。没有 issue id 时禁止转修。
-8. 若判定需要进入 `$df-fix <issue-id>`，必须立即读取 `df-fix` skill 并按其流程继续；禁止在 `$df-uat` 语境下直接修改实现文件。
+7. 回复生成的 issue id，并继续完成本轮用户反馈 intake；没有 issue id 时禁止转修。
+8. 本轮反馈全部登记、去重、重开和落盘完成后，按"Issue 后续判定"明确是进入 `$df-fix <issue-id>`，还是继续下一项 UAT。
+9. 若判定需要进入 `$df-fix <issue-id>`，必须立即读取 `df-fix` skill 并按其流程继续；禁止在 `$df-uat` 语境下直接修改实现文件。
 
 脚本会拒绝非法严重度，不要用 `urgent`、`blocker` 等临时值绕过枚举。
 
@@ -70,19 +71,29 @@ metadata:
 3. 如果是后续 UAT 项 issue，登记 issue，标题写清所属 UAT 项；不算当前 UAT 项失败。
 4. 登记后提醒用户先收口当前 UAT；不要跟随用户切到后续阶段，也不要自动 `$df-fix`，除非该 issue 阻断当前 UAT 或用户明确要求暂停当前 UAT 去修。
 
+## 本轮反馈 intake 硬闸
+
+`$df-uat` 首要职责是把用户本轮反馈的所有 UAT 问题完整记录下来。用户一次给出多个异常、截图、会话现象、字段错误或复测结论时，必须先完成整批 intake，禁止登记第一个高严重度 issue 后立刻转修。
+
+- 先把本轮反馈拆成用户可见失败面清单；逐项判断当前 UAT 项、后续 UAT 项、既有 issue 重开、同一失败面续写或信息不足。
+- 对每个失败面完成去重、登记或重开，并同步更新 `issues.yaml`、`uat.md`、`handoff.md`、`state.yaml` 中必要的 UAT 记录。
+- 本轮反馈仍有未处理项、未确认归属、未落盘 issue 或需要补最小证据时，禁止进入 `$df-fix`。
+- 用户明确说"先只读"、"只记录"、"先把 issues 落盘"、"不要修"时，完成记录后必须停下，只给 issue 清单和建议下一步，不得转修。
+- 只有本轮反馈 intake 完成后，才允许按严重度和阻断关系选择一个明确 issue id 进入 `$df-fix <issue-id>`。
+
 ## Issue 后续判定
 
-- `critical/high`、前置能力失败、会污染后续证据：立即自动进入 `$df-fix <issue-id>` 修复；不得在 `$df-uat` 流程内直接改实现文件，不得把"先修再补记录"当作合格闭环。
+- `critical/high`、前置能力失败、会污染后续证据：先完成本轮反馈 intake；若用户未要求只记录，intake 完成后进入 `$df-fix <issue-id>` 修复；不得在 `$df-uat` 流程内直接改实现文件，不得把"先修再补记录"当作合格闭环。
 - 登记 `critical/high` 时，如已定位根因或有明确嫌疑，把 `causal_hint`、`affected_files`、`reproduction` 写入 issue 可选字段，减少 `$df-fix` 重复理解成本。
 - `low/medium`、独立且不影响后续证据：可以继续下一条 UAT，并说明为什么不阻断。
 - 信息不足：先补最小证据，不继续也不修。
 
 ## 自动转修边界
 
-- UAT 中允许修阻塞项，但必须先生成 UAT issue，再显式切到 `$df-fix <issue-id>` 流程；禁止先修后补 issue。
+- UAT 中允许修阻塞项，但必须先完成本轮反馈 intake，再显式切到 `$df-fix <issue-id>` 流程；禁止先修后补 issue，禁止只登记部分反馈就开修。
 - 即使根因明显，也禁止"顺手修"：不得跳过 `$df-fix` 的读取、修复、门禁、记录闭环。
 - `$df-uat` 本身只允许读取证据、引导复测、登记 issue、更新 UAT 记录；实现代码、工作流、服务配置改动必须发生在 `$df-fix`。
-- 进入 `$df-fix` 前必须给用户一句状态切换说明，例如"已登记 UAT-xxx，按 df-fix 修复闭环处理"；随后按 `df-fix` 的强制接管规则执行。
+- 进入 `$df-fix` 前必须给用户一句状态切换说明，并列出本轮已登记/续写/重开的 issue 清单，例如"本轮反馈已全部登记：UAT-001、UAT-002；现在按 df-fix 修复 UAT-001"；随后按 `df-fix` 的强制接管规则执行。
 
 ## 引导原则
 

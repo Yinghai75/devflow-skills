@@ -6,12 +6,12 @@
 
 [English](./README.en.md) · **中文**
 
-**个人开发者的轻量 AI 编码工作流：11 个 skills，约 890 行指令，覆盖完整 feature 生命周期**
+**个人开发者的轻量 AI 编码工作流：11 个 skills，约 940 行指令，覆盖完整 feature 生命周期**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
   <img src="https://img.shields.io/badge/skills-11-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/instructions-~890-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/instructions-~940-10B981?style=flat-square" alt="Instructions"/>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
@@ -31,7 +31,7 @@
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 个 skills | 1 个 agent 文件 | 约 3,200 行 |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 个 workflows | 33 个 agent 文件 | 约 47,600 行 |
-| **DevFlow** | **11 个 skills** | **5 类精简子代理角色** | **约 890 行** |
+| **DevFlow** | **11 个 skills** | **5 类精简子代理角色** | **约 940 行** |
 
 指令越重，每次会话烧的 token 越多，agent 越容易在长提示词里迷失重点。DevFlow 选择把范围收窄：不追求覆盖所有项目治理场景，只把个人开发的一次 feature 做扎实。
 
@@ -44,7 +44,7 @@
 核心取舍：
 
 - **状态落仓库**：目标、计划、checklist、验证证据和断点都写进 `devflow/` 文件树。
-- **流程足够轻**：11 个 skills，约 890 行 `SKILL.md` 指令，围绕 feature 生命周期组织。
+- **流程足够轻**：11 个 skills，约 940 行 `SKILL.md` 指令，围绕 feature 生命周期组织。
 - **恢复成本低**：换会话后运行 `df-status -r`，即可恢复当前 feature、计划和下一步。
 - **风险控制保守**：高风险任务要求 RED 证据、防炸门禁和发布闭环，agent 不能只写“已通过”来自证。
 
@@ -56,7 +56,7 @@
 - **换个会话上次做到哪就忘了？** `handoff.md` + `df-status -r` 可以恢复断点。
 - **AI 说“已通过测试”但其实没跑？** `run-gate` 生成机器证据，agent 不能自说自话。
 - **想用 AI 但不敢全放手？** 计划审阅 + 人工 UAT，关键节点人在环。
-- **框架太重烧太多 token？** 约 890 行 skill 指令，不在提示词里塞一整套重型流程。
+- **框架太重烧太多 token？** 约 940 行 skill 指令，不在提示词里塞一整套重型流程。
 
 ---
 
@@ -136,6 +136,8 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 - **状态落仓库，不落聊天记录**：目标、计划、checklist、验证证据和断点全部写进 `devflow/`。人可以直接读、改、接管。
 - **机器证据，不是文档自证**：关键门禁通过 `run-gate` 执行，结果写入 `evidence/manifest.json`。agent 手写的“已通过”不算数。
 - **计划和执行分离**：`df-plan` 完成后默认停在审阅点。你确认后才进入 `df-execute`。
+- **平台契约先有证据**：新增或改变公开 API、DSL、权限、运行环境或跨模块契约前，先查近邻模式、官方文档或 runtime probe。
+- **UAT 反馈先完整入账**：一次反馈里有多个失败面时，先完成整批 issue intake，再决定是否切到 `df-fix`。
 - **做一点不能炸三点**：高风险任务要求先写失败测试或复现证据，再用防炸门禁覆盖影响面和回归验证。
 
 ---
@@ -149,9 +151,9 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 | `df-plan` | 写计划、执行清单、验证方案和防炸门禁。 | `plan.md`、`checklist.yaml`、`validation.md` |
 | `df-codebase-map` | 生成、刷新和消费实现层代码地图。 | `devflow/shared/codebase_map/` |
 | `df-constraint-audit` | 审计门禁、状态码语义和接口契约的重复或矛盾。 | 约束问题清单、整改建议 |
-| `df-execute` | 按 checklist 逐项实施，更新状态和证据。 | 代码改动、`evidence/manifest.json`、`handoff.md` |
-| `df-uat` | 引导人工 UAT，记录验收问题。 | `uat.md`、`issues.yaml` |
-| `df-fix` | 修复 UAT issue，跑回归门禁。 | 修复提交、更新证据 |
+| `df-execute` | 按 checklist 逐项实施，先跑相关门禁，再更新状态和证据。 | 代码改动、`evidence/manifest.json`、`handoff.md` |
+| `df-uat` | 引导人工 UAT，完整记录本轮反馈和验收问题。 | `uat.md`、`issues.yaml` |
+| `df-fix` | 修复 UAT issue，做 q1/q2/q3 分流并跑回归门禁。 | 修复提交、更新证据 |
 | `df-regression` | 处理已归档 feature 的验收后追加回归。 | 回归 issue、修复 feature、验证证据 |
 | `df-accept` | 检查完成度、证据、门禁，归档 feature。 | `acceptance.md`、`devflow/archive/` |
 | `df-status` | 保存断点，或在新会话恢复上下文。 | `handoff.md` |

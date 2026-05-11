@@ -25,13 +25,16 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 
 1. 读取 active feature 的 `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`state.yaml`。
 2. 从第一个 `pending` 或 `in_progress` 项开始循环执行，确认写入边界与验证方式。
+   - 新增或改变平台能力、公开 API、DSL/配置语法、权限声明、运行环境假设或跨模块契约时，先执行平台/契约证据闸。
+   - 证据闸只查本轮相关文件、相邻模块、codebase map 命中模块或调用链近邻；不要求全库扫描。
+   - 可用证据仅限近邻精确既有模式、官方文档或 runtime probe；无证据只能调查或加 probe，不得直接实现。
 3. 行为变更先按 TDD 写 RED 测试或 golden sample，确认失败后实现。
 4. 实现时优先遵守仓库现有模式；风险扩散时回到 `$df-plan` 补计划。
 5. 每完成一项：
    - 更新 `checklist.yaml` 状态。
    - 更新 `state.yaml` 的 `current_step`；高风险 RED 证据可写入 `red_evidence`。
    - 更新 `handoff.md`。
-   - 若该项形成可独立验证的代码/文档改动，检查 `git status --short`，只暂存相关文件并做一个小提交；不得混入无关改动或用户明确保留的不提交文件。
+   - 若该项形成可独立验证的代码/文档改动，先跑受影响路径的 targeted test（单测/构建/lint），通过后再检查 `git status --short`，只暂存相关文件并做一个小提交；不得混入无关改动或用户明确保留的不提交文件。
    - 若该项验证失败但已改代码，先 `git stash push -m "df-execute-wip-<item-id>-<时间戳>"` 保存现场并把 hash 写入 `handoff.md`，再继续修复或回退。
    - 改了门禁脚本、状态码语义或接口契约后，检查 checklist/validation/handoff/issues 是否仍有重复描述；未清理前不得标记该项完成。
    - 禁止连续两个 checklist 项之间没有任何 git checkpoint。
@@ -67,54 +70,42 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 
 ## 子代理使用
 
-主代理默认编排，优先分派。只有任务很短、薄改、强耦合，或拆分成本高于收益时，才由主代理直接执行。
+主模型 token 只花在决策和编排上。代码实现分派给子代理。
 
-### 分派矩阵
+### 分派规则
 
-| 条件 | 执行方式 |
-|------|---------|
-| 需要先定位、比较、收集事实或确认影响面 | 先 spawn `explorer`，拿到结果后再决定实现方式 |
-| 写入边界清晰、验收标准明确、无需主代理持有完整上下文 | spawn `executor`；若当前会话未注册该类型，回退到同定义的 `worker` |
-| 多个 checklist 项或子任务写入边界不重叠 | 并行 spawn 多个 `executor`；未注册时回退到多个 `worker`；只读探索可并行 spawn `explorer` |
-| 需要跑门禁、审查 diff、核验证据 | spawn `verifier`；若当前会话未注册该类型，由主代理执行验证，不用 `explorer` 冒充 |
-| 临时发现计划缺口、影响面扩大或验收口径变化 | spawn `planner` 补计划；若当前会话未注册该类型，主代理暂停实现并回到 `$df-plan` |
-| 任务非常短、薄改、强耦合，或拆分成本高于收益 | 主代理直接执行，并在 handoff 记录原因 |
+- 主模型直接执行的唯一条件：≤ 2 文件且 ≤ 30 行且不需要搜索定位。
+- 搜索/定位/比较 → spawn `explorer`。
+- 实现代码（> 2 文件或 > 30 行）→ spawn `executor`（回退 `worker`）。
+- 多个 checklist 项写入边界不重叠 → 并行 spawn 多个 `executor`。
+- 跑门禁/审查 diff → spawn `verifier`。
+- 发现计划缺口 → spawn `planner` 或回到 `$df-plan`。
 
-默认分派；只有最后一行允许主代理直接实现。
+### 角色
 
-### 编排循环
+| 角色 | 模型 | 可写范围 |
+|------|------|---------|
+| `explorer` | 5.3 low | 无 |
+| `executor` / `worker` | 5.3 medium | 任务指定路径 |
+| `verifier` | 5.4 medium | evidence 目录 |
+| `planner` | 5.5 xhigh | feature 计划文件 |
 
-1. 读取所有 `pending` / `in_progress` checklist 项，识别写入边界和验证方式。
-2. 找出可并行且写入边界不重叠的项；若超过 1 项，按矩阵并行分派并统一收集结果。
-3. 单项执行时，若需要探索，先 spawn `explorer`；若探索后仍边界清晰，spawn `executor`，未注册时回退到 `worker`；否则主代理执行或回到 `$df-plan`。
-4. 整合子代理结果后，主代理更新 `checklist.yaml`、`state.yaml`、`handoff.md`，并按提交分组规则处理 git。
-5. 跑对应门禁并写入 evidence；验证失败但原因可定位时继续修复并重跑。
-6. 重新读取 checklist，直到全部完成或命中止损规则。
+### 编排
 
-可用角色：
+1. 读取 pending checklist 项，估计文件数和改动量。
+2. 写入边界不重叠的项 → 并行 spawn，统一收集。
+3. 需要探索 → 先 `explorer`，再 `executor`。
+4. executor 返回后，用 `/review` 审查 diff；未通过不得提交。
+5. `/review` 发现问题 → 回退到 `executor` 修复，不由主模型自己修。
+6. 主模型整合结果、更新 DevFlow 产物、处理 git。
+7. spawn `verifier` 跑对应门禁。
+8. 循环直到全部完成或止损。
 
-- `explorer`：只读探索、定位、比较、核验证据。输入探索目标、相关路径、关注点；输出发现摘要、路径、推荐；不得写项目文件；完成时返回“探索完成”。
-- `executor`：实现单个边界清晰的 checklist 项。输入目标、写入边界、验收标准、相关路径；输出改动文件、验证结果、提交信息或未提交原因；只写指定路径；完成时返回“执行完成”。
-- `worker`：`executor` 的兼容回退，职责、输入输出和写入边界与 `executor` 相同。
-- `verifier`：跑门禁、审查 diff、核验证据。输入门禁 ID 或 diff 范围、验收标准；输出通过/失败、证据路径和风险说明；只写 evidence 目录；完成时返回“验证完成”。
-- `planner`：临时补充 `plan.md`、`checklist.yaml`、`validation.md`。输入补计划原因、当前断点和影响面；只写当前 feature 目录内计划文件；完成时返回“计划补充完成”。
+### 生命周期
 
-主代理负责编排、冲突判断、结果整合、状态文件更新、提交分组、门禁最终判定与最终回复。当前会话若未注册 `executor` / `verifier` / `planner`，只允许按上面的明确回退处理。
-
-生命周期：
-
-- spawn 后记录 agent id。
-- 并行时收集 ids 后统一 `wait_agent`。
-- 拿到最终结果并完成整合后，对已完成且不再复用的子代理调用 `close_agent(id)`。
-- `wait_agent` 超时、子代理仍在运行、或已有中间产物，不得直接判失败或提前关闭；应轮询、延长等待、读取中间产物或继续主线后再回收。
-- 同一 checklist 项强相关任务可复用同一子代理；换题、换边界或任务结束时关闭。
-
-上下文：
-
-- 默认 `fork_context=false`。
-- 只传 feature 目录、当前 checklist 项、相关路径、写入边界、约束、证据摘要和验收标准。
+- 默认 `fork_context=false`，只传最小上下文包（见 `~/.codex/policies/subagent_handoff.md`）。
 - 并行只用于写入边界不重叠或只读任务。
-- 使用 `fork_context=true` 必须符合 `~/.codex/policies/subagent_handoff.md` 的例外条件，并在进度说明里披露原因。
+- 完成且不再复用时 `close_agent`；超时不得直接判失败。
 
 ## 下一步
 
