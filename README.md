@@ -6,12 +6,12 @@
 
 [English](./README.en.md) · **中文**
 
-**个人开发者的轻量 AI 编码工作流：11 个 skills，约 940 行指令，覆盖完整 feature 生命周期**
+**个人开发者的轻量 AI 编码工作流：10 个 skills，约 875 行指令，覆盖 feature 计划、执行、UAT、修复、归档与恢复**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
-  <img src="https://img.shields.io/badge/skills-11-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/instructions-~940-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/skills-10-6366F1?style=flat-square" alt="Skills"/>
+  <img src="https://img.shields.io/badge/instructions-~875-10B981?style=flat-square" alt="Instructions"/>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
@@ -21,42 +21,27 @@
 
 ## 为什么做 DevFlow
 
-很多 AI 编码工作流都在解决更大的问题：规格管理、团队协作、多 agent 编排、复杂项目治理。DevFlow 的目标更窄：
+DevFlow 解决的是一个很窄的问题：
 
 **一个人 + 一个 coding agent，把一次开发任务稳定推到可验收、可恢复、可归档。**
 
-按当前公开仓库粗略统计，不同方案的指令规模差异很明显：
+它不是重型规格平台，也不是“让 agent 接管整个项目”。DevFlow 把状态写进仓库，把每个阶段的授权、证据和断点落成文件，让换会话、返工、UAT 失败和线上发布都能回到同一套事实。
+
+按当前公开仓库粗略统计：
 
 | 框架 | 主要单元 | 子代理配置 | 粗略指令量 |
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 个 skills | 1 个 agent 文件 | 约 3,200 行 |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 个 workflows | 33 个 agent 文件 | 约 47,600 行 |
-| **DevFlow** | **11 个 skills** | **5 类精简子代理角色** | **约 940 行** |
-
-指令越重，每次会话烧的 token 越多，agent 越容易在长提示词里迷失重点。DevFlow 选择把范围收窄：不追求覆盖所有项目治理场景，只把个人开发的一次 feature 做扎实。
-
-它不追求“全自动接管项目”，也不把每个小需求都升级成重型规格工程。DevFlow 把一次 feature 拆成几个固定阶段：
-
-```text
-目标收敛 -> 计划审阅 -> 执行验证 -> UAT 闭环 -> 最终归档
-```
+| **DevFlow** | **10 个 skills** | **5 类精简子代理角色** | **约 875 行** |
 
 核心取舍：
 
-- **状态落仓库**：目标、计划、checklist、验证证据和断点都写进 `devflow/` 文件树。
-- **流程足够轻**：11 个 skills，约 940 行 `SKILL.md` 指令，围绕 feature 生命周期组织。
-- **恢复成本低**：换会话后运行 `df-status -r`，即可恢复当前 feature、计划和下一步。
-- **风险控制保守**：高风险任务要求 RED 证据、防炸门禁和发布闭环，agent 不能只写“已通过”来自证。
-
----
-
-## 适用场景
-
-- **AI 修一个问题引出三个回归？** DevFlow 的防炸门禁要求先证明旧功能不坏再改。
-- **换个会话上次做到哪就忘了？** `handoff.md` + `df-status -r` 可以恢复断点。
-- **AI 说“已通过测试”但其实没跑？** `run-gate` 生成机器证据，agent 不能自说自话。
-- **想用 AI 但不敢全放手？** 计划审阅 + 人工 UAT，关键节点人在环。
-- **框架太重烧太多 token？** 约 940 行 skill 指令，不在提示词里塞一整套重型流程。
+- **状态落仓库**：目标、计划、checklist、UAT、issue、证据、断点和归档记录都在 `devflow/`。
+- **计划和执行分离**：`df-plan` 完成后停在审阅点；只有显式 `$df-execute` 或同等执行语义才允许动代码。
+- **上下文分层读取**：先读 `codebase_map/OVERVIEW.md`，再只读命中的模块卡片；不把全库地图塞进上下文。
+- **证据先于断言**：关键门禁必须由脚本或 runtime probe 产生证据；自然语言“已通过”不算。
+- **UAT 问题闭环**：人工反馈先完整 intake，再按 issue 进入 `df-fix`，避免边记边修漏问题。
 
 ---
 
@@ -91,17 +76,16 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ## 快速上手
 
 ```bash
-/df-init        # 拿到需求：创建 feature 目录，收敛目标，分诊风险车道
-/df-backlog     # 先不做：把新想法登记到 roadmap/backlog
-/df-plan        # 确定怎么做：生成计划、checklist、验证方案，停在审阅点
-/df-codebase-map # 看代码地图：生成或刷新实现层导航
-/df-constraint-audit # 查约束漂移：审计门禁、状态码、接口契约是否重复或矛盾
-/df-execute     # 开始实施：按 checklist 执行，更新状态和证据
-/df-status -r   # 换会话了：恢复上次断点
-/df-uat         # 人工验收：记录 UAT 结果和问题
-/df-fix         # 修复问题：修 UAT issue，跑回归门禁
+/df-plan        # 启动并规划 feature：创建目录、分诊车道、写计划和 UAT 覆盖矩阵
+/df-backlog     # 先不做：把新想法登记到 roadmap/backlog，不打断当前 feature
+/df-codebase-map # 维护代码地图：OVERVIEW + 命中模块卡片，节省上下文
+/df-constraint-audit # 查约束漂移：审计门禁、状态语义、接口契约是否重复或矛盾
+/df-execute     # 显式授权后执行 checklist，更新状态、证据和提交
+/df-status -r   # 新会话恢复：读取当前 feature、计划和断点
+/df-uat         # 人工验收：引导真实路径 UAT，完整登记本轮反馈
+/df-fix         # 修复 UAT issue：分流、RED、修复、验证、关闭 issue
 /df-regression  # 验收后回归：处理已归档 feature 的追加 UAT 问题
-/df-accept      # 最终归档：检查证据和门禁，通过后移入 archive/
+/df-accept      # 最终归档：检查门禁、UAT、地图、truth doc、golden set 后归档
 ```
 
 ---
@@ -109,36 +93,95 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ## 工作流
 
 ```text
-┌─────────┐    ┌─────────┐    ┌────────────┐    ┌────────┐    ┌───────────┐
-│ df-init │───▶│ df-plan │───▶│ df-execute │───▶│ df-uat │───▶│ df-accept │
-└─────────┘    └─────────┘    └────────────┘    └────────┘    └───────────┘
-     │              │               ▲                │              │
-     ▼              ▼               │                ▼              ▼
-┌────────────┐ ┌────────────────┐ ┌────────┐    记录 issues.yaml ┌───────────────┐
-│ df-backlog │ │ df-codebase-map │ │ df-fix │◀───────────────────│ df-regression │
-└────────────┘ └────────────────┘ └────────┘                    └───────────────┘
+┌─────────┐    ┌────────────┐    ┌────────┐    ┌───────────┐
+│ df-plan │───▶│ df-execute │───▶│ df-uat │───▶│ df-accept │
+└─────────┘    └────────────┘    └────────┘    └───────────┘
+     │              ▲                │              │
+     ▼              │                ▼              ▼
+┌────────────┐ ┌────────────────┐ ┌────────┐    ┌───────────────┐
+│ df-backlog │ │ df-codebase-map │ │ df-fix │◀──│ df-regression │
+└────────────┘ └────────────────┘ └────────┘    └───────────────┘
 
-              df-status：任意阶段保存断点 / 新会话 df-status -r 恢复
+df-status：任意阶段保存断点 / 新会话 df-status -r 恢复
+df-constraint-audit：任意阶段只读审计约束漂移
 ```
 
-三种车道：
+风险车道由 `df-plan` 分诊：
 
-- **fast**：低风险文档、小修复。流程更短，可以更快进入验收和归档。
-- **standard**：常规多文件开发。按计划、执行、UAT、修复、验收推进。
-- **high-risk**：状态机、线上发布、数据写入、跨模块编排。要求 RED 证据、防炸门禁和发布闭环。
-
-风险车道由 `df-init` 保守分诊。涉及线上对象时自动升级为 `high-risk`，不允许手工降级绕过。
+- **fast**：低风险文档、小修复、纯展示或局部逻辑。
+- **standard**：常规多文件开发，按 plan → execute → UAT → fix → accept 推进。
+- **high-risk**：状态机、线上发布、数据写入、跨模块编排、真实浏览器或外部站点路径；要求 RED 证据、防炸门禁和发布闭环。
 
 ---
 
-## 设计理念
+## 当前机制
 
-- **状态落仓库，不落聊天记录**：目标、计划、checklist、验证证据和断点全部写进 `devflow/`。人可以直接读、改、接管。
-- **机器证据，不是文档自证**：关键门禁通过 `run-gate` 执行，结果写入 `evidence/manifest.json`。agent 手写的“已通过”不算数。
-- **计划和执行分离**：`df-plan` 完成后默认停在审阅点。你确认后才进入 `df-execute`。
-- **平台契约先有证据**：新增或改变公开 API、DSL、权限、运行环境或跨模块契约前，先查近邻模式、官方文档或 runtime probe。
-- **UAT 反馈先完整入账**：一次反馈里有多个失败面时，先完成整批 issue intake，再决定是否切到 `df-fix`。
-- **做一点不能炸三点**：高风险任务要求先写失败测试或复现证据，再用防炸门禁覆盖影响面和回归验证。
+### 分层 codebase map
+
+`df-codebase-map` 维护 `devflow/shared/codebase_map/`：
+
+- `OVERVIEW.md` 永远加载，限制 30 行以内，只放目录 atlas、依赖图和卡片索引。
+- `modules/*.md` 每张卡片限制 30 行以内，只写关键文件、边界与风险、惯例与测试。
+- `df-plan` / `df-fix` 只读 OVERVIEW 和命中的模块卡片，并在产物里记录 `map_modules_read`。
+- `df-execute` / `df-fix` 每次 git checkpoint 后只增量刷新命中的卡片。
+- `df-accept` 做最终 stale gate，确认本 feature 命中的卡片已经刷新。
+
+这套机制的目标是减少上下文占用：通用层只给 atlas，细节层只读和当前路径相关的几张卡片。
+
+### 平台与契约证据闸
+
+新增或改变平台能力、公开 API、DSL/配置语法、权限声明、运行环境假设或跨模块契约时，不能靠推理直接写实现。
+
+可用证据只包括：
+
+- 近邻精确既有模式。
+- 官方文档。
+- runtime probe。
+
+找不到证据时只能调查或加 probe，不能直接实现。mock 单测不能证明平台能力存在。
+
+### 唯一事实源和约束审计
+
+`df-plan` 要求 `checklist.yaml` 和 `validation.md` 中的门禁行为、状态码语义和接口契约使用“脚本路径 + 通过/失败条件行号”的引用格式，避免自然语言复述脚本逻辑。
+
+`df-constraint-audit` 只读扫描当前 feature 的 DevFlow 产物，重点查：
+
+- 门禁描述与 Python 脚本实际行为是否矛盾。
+- `state.yaml`、`acceptance.md`、`handoff.md`、`issues.yaml`、`uat.md` 是否状态漂移。
+- 同一门禁行为、接口契约或状态语义是否被多处重复描述。
+
+### UAT intake 先于转修
+
+`df-uat` 不只是登记问题，也负责引导真实环境人工验收。一次用户反馈里有多个异常、截图、字段错误、会话现象或复测结论时，必须先完成整批 intake：
+
+- 拆成用户可见失败面。
+- 去重、重开或登记 issue。
+- 同步更新 `issues.yaml`、`uat.md`、`handoff.md`、`state.yaml`。
+- 用户说“只记录”“先只读”“不要修”时，记录后停下。
+
+只有本轮反馈全部入账后，才允许选择一个明确 issue id 进入 `df-fix`。
+
+### df-fix 分流和止损
+
+`df-fix` 面向当前 active feature 的 open UAT issue，先分流再改代码：
+
+- **fast-fix**：极小、低风险、根因清楚；可走快速 RED → patch → targeted test → 原子提交。
+- **scoped-fix**：默认车道；当前 feature 影响面内的受控回归。
+- **high-risk-fix**：跨 Dify、插件、Broker、`nas-agent`、`erp-executor`、容器、发布链路或真实运行态；默认只能调查，写明收窄理由后才允许单点补丁。
+- **integration-debug**：跨 3+ 运行中组件或同一 issue 多轮多环节仍未关闭；只加探针和读运行态快照，定位单一断点后再降级修复。
+
+改代码前必须落盘 `fix_lane`、`q1_causal_chain`、`q2_regression_list`、`q3_platform_assumptions`。每轮修复尝试后必须 git checkpoint；命中止损时写 `doom_loop_breaker`，再由用户选择回 `df-plan` 或继续探针定位。
+
+### 子代理分派
+
+`df-execute` 默认把主模型 token 留给决策和编排，代码实现交给边界清楚的子代理：
+
+- 搜索、定位、比较：`explorer`。
+- 实现代码：`executor`，未注册时回退 `worker`。
+- 跑门禁和审查 diff：`verifier`。
+- 计划缺口：`planner` 或回到 `df-plan`。
+
+`df-fix` 更保守：主代理保留 issue 判定、车道分流、`q1/q2/q3`、止损、关闭 issue 和最终状态；子代理只做边界清楚的定位、窄补丁和验证。同一用户可见失败面的核心修复不得并发多个 executor。
 
 ---
 
@@ -146,49 +189,48 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 
 | Skill | 做什么 | 产出什么 |
 | --- | --- | --- |
-| `df-init` | 收敛目标、约束、成功标准，分诊风险车道。 | `context.md`、`state.yaml` |
-| `df-backlog` | 登记不应打断当前 feature 的新事项。 | 更新 `roadmap.md` |
-| `df-plan` | 写计划、执行清单、验证方案和防炸门禁。 | `plan.md`、`checklist.yaml`、`validation.md` |
-| `df-codebase-map` | 生成、刷新和消费实现层代码地图。 | `devflow/shared/codebase_map/` |
-| `df-constraint-audit` | 审计门禁、状态码语义和接口契约的重复或矛盾。 | 约束问题清单、整改建议 |
-| `df-execute` | 按 checklist 逐项实施，先跑相关门禁，再更新状态和证据。 | 代码改动、`evidence/manifest.json`、`handoff.md` |
-| `df-uat` | 引导人工 UAT，完整记录本轮反馈和验收问题。 | `uat.md`、`issues.yaml` |
-| `df-fix` | 修复 UAT issue，做 q1/q2/q3 分流并跑回归门禁。 | 修复提交、更新证据 |
-| `df-regression` | 处理已归档 feature 的验收后追加回归。 | 回归 issue、修复 feature、验证证据 |
-| `df-accept` | 检查完成度、证据、门禁，归档 feature。 | `acceptance.md`、`devflow/archive/` |
-| `df-status` | 保存断点，或在新会话恢复上下文。 | `handoff.md` |
+| `df-plan` | 启动并规划 feature：创建目录、分诊车道、读取 codebase map、收敛灰区、写计划和 UAT 覆盖矩阵。 | `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`uat.md`、`state.yaml` |
+| `df-backlog` | 登记不应打断当前 feature 的新事项。 | 更新 `devflow/roadmap.md` |
+| `df-codebase-map` | 维护分层代码地图：OVERVIEW + 命中模块卡片。 | `devflow/shared/codebase_map/` |
+| `df-constraint-audit` | 只读审计门禁描述、状态语义和接口契约是否与事实源漂移。 | 约束问题清单、建议唯一事实源 |
+| `df-execute` | 显式授权后按 checklist 执行，先跑 targeted test，再提交和更新证据。 | 代码改动、提交、`evidence/manifest.json`、`handoff.md` |
+| `df-status` | 保存断点，或在新会话恢复当前 feature。 | `handoff.md`、恢复上下文 |
+| `df-uat` | 引导人工 UAT，完整登记本轮反馈和 UAT issue。 | `uat.md`、`issues.yaml` |
+| `df-fix` | 修复 active feature 的 UAT issue，完成 RED、修复、验证、关闭和回归记录。 | 修复提交、issue 关闭记录、验证证据 |
+| `df-regression` | 处理已归档 feature 的验收后追加回归或新增 UAT issue。 | archive feature 内的 regression issue、证据和关闭记录 |
+| `df-accept` | 最终验收并归档，检查 checklist、UAT、门禁、codebase map、truth doc 和 golden set。 | `acceptance.md`、`devflow/archive/` |
 
 ---
 
 ## 运行时目录
 
-运行 `df-init` 后，你的仓库会出现：
+运行 `df-plan` 后，你的仓库会出现：
 
 ```text
 your-repo/
 └── devflow/
     ├── active/
     │   └── 2026-05-01-add-login/     # 当前 feature
-    │       ├── context.md             # 目标、约束、成功标准
-    │       ├── plan.md                # 实施方案
+    │       ├── context.md             # 目标、约束、成功标准、map_modules_read
+    │       ├── plan.md                # 实施方案和边界
     │       ├── checklist.yaml         # 可逐项执行的任务清单
     │       ├── validation.md          # 验证方案 + 防炸门禁
-    │       ├── state.yaml             # 当前状态和断点
+    │       ├── state.yaml             # 当前状态、授权和断点
     │       ├── handoff.md             # 跨会话交接
-    │       ├── uat.md                 # UAT 记录
-    │       ├── issues.yaml            # UAT 发现的问题
+    │       ├── uat.md                 # UAT 覆盖矩阵和复测记录
+    │       ├── issues.yaml            # 当前 UAT 活跃问题视图
     │       ├── acceptance.md          # 验收报告
-    │       └── evidence/              # 机器证据
+    │       └── evidence/              # 机器证据和历史归档
     │           └── manifest.json
     ├── archive/                       # 已归档 feature
     ├── roadmap.md                     # 长目标 backlog
     └── shared/
         ├── gate_registry.yaml         # 门禁注册表
         ├── golden_sets/               # 黄金样本
-        └── codebase_map/              # 实现层代码地图
+        └── codebase_map/              # OVERVIEW + modules/*.md
 ```
 
-这些文件是正本状态。agent 读它们来恢复上下文，你也可以随时打开审阅或直接编辑。
+这些文件是正本状态。agent 读它们恢复上下文，人也可以直接审阅、修改或接管。
 
 ---
 
