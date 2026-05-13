@@ -48,7 +48,7 @@ def compact_issues(feature: Path | str, max_issue_lines: int = 50) -> CompactIss
     output = ["issues:"]
     history_ref = ""
     for block in blocks:
-        if _history_ref(block):
+        if _is_compacted_stub(block):
             output.append(block.rstrip())
             continue
         status = _issue_status(block)
@@ -116,6 +116,19 @@ def _history_ref(block: str) -> str:
         if match:
             return match.group(1).strip().strip('"')
     return ""
+
+
+def _is_compacted_stub(block: str) -> bool:
+    if not _history_ref(block):
+        return False
+    for line in block.splitlines():
+        if line.startswith("      "):
+            return False
+        if line.startswith("    "):
+            key = line.strip().split(":", 1)[0]
+            if key not in KEEP_SCALAR_KEYS and key != "history_ref":
+                return False
+    return True
 
 
 def _compact_stub(block: str, history_ref: str) -> str:

@@ -345,6 +345,43 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertIn("preserved", history.read_text(encoding="utf-8"))
         self.assertEqual(1, len(list((feature / "evidence").glob("*.yaml"))))
 
+    def test_compact_issues_recompacts_oversized_active_issue_with_history_ref(self):
+        feature = create_feature(self.repo, "重开后再次压缩", "standard", "闭环 UAT", [], [])
+        (feature / "evidence").mkdir()
+        original_history = feature / "evidence" / "uat-001-full-history.yaml"
+        original_history.write_text(
+            """issues:
+  - id: UAT-001
+    status: closed
+    investigation:
+      - step: original
+""",
+            encoding="utf-8",
+        )
+        new_history = "\n".join(f"      - step: reopened-{index}" for index in range(55))
+        (feature / "issues.yaml").write_text(
+            f"""issues:
+  - id: UAT-001
+    title: "旧失败面"
+    severity: high
+    status: open
+    history_ref: "evidence/uat-001-full-history.yaml"
+    investigation:
+{new_history}
+""",
+            encoding="utf-8",
+        )
+
+        result = compact_issues(feature)
+        issues = (feature / "issues.yaml").read_text(encoding="utf-8")
+
+        self.assertEqual(1, result.compacted_count)
+        self.assertIsNotNone(result.history_path)
+        self.assertIn("history_ref:", issues)
+        self.assertNotIn("reopened-54", issues)
+        self.assertIn("uat-001-full-history.yaml", result.history_path.read_text(encoding="utf-8"))
+        self.assertIn("original", original_history.read_text(encoding="utf-8"))
+
     def test_failed_gate_blocks_accept(self):
         feature = create_feature(self.repo, "失败门禁", "high-risk", "改状态机", [], [])
         recommend_gates(feature, surfaces=["state-machine"])

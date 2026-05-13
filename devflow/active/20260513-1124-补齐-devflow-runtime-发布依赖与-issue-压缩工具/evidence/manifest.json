@@ -63,6 +63,22 @@
       "command": "uv run python /Users/yinghai/.codex/local/devflow/tests/test_devflow_cli.py",
       "run_at": "2026-05-13 13:33:04 CST",
       "log_path": "evidence/devflow-runtime-unit-20260513-133304.log"
+    },
+    {
+      "gate_id": "git-diff-check",
+      "status": "passed",
+      "exit_code": 0,
+      "command": "git diff --check",
+      "run_at": "2026-05-13 13:37:26 CST",
+      "log_path": "evidence/git-diff-check-20260513-133726.log"
+    },
+    {
+      "gate_id": "devflow-runtime-unit",
+      "status": "passed",
+      "exit_code": 0,
+      "command": "uv run python /Users/yinghai/.codex/local/devflow/tests/test_devflow_cli.py",
+      "run_at": "2026-05-13 13:37:27 CST",
+      "log_path": "evidence/devflow-runtime-unit-20260513-133726.log"
     }
   ]
 }
