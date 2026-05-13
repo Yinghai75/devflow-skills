@@ -62,6 +62,8 @@ npx skills add https://github.com/Yinghai75/devflow-skills
 mkdir -p ~/.codex/skills
 git clone https://github.com/Yinghai75/devflow-skills.git /tmp/devflow-skills-codex
 cp -R /tmp/devflow-skills-codex/df-* ~/.codex/skills/
+mkdir -p ~/.codex/local/devflow
+cp -R /tmp/devflow-skills-codex/runtime/* ~/.codex/local/devflow/
 
 # Claude Code
 mkdir -p ~/.claude/skills
@@ -70,6 +72,10 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ```
 
 其他 agent：将 `df-*` 目录复制到对应 skills 路径即可。每个 `df-*` 目录都是独立 skill，入口为 `SKILL.md`。
+
+### Runtime helper
+
+`df-plan`、`df-status`、`df-uat` 和门禁执行会调用 `~/.codex/local/devflow/devflow_cli.py`。如果安装方式只复制了 `df-*`，还需要把仓库里的 `runtime/` 同步到 `~/.codex/local/devflow/`。
 
 ---
 
@@ -117,6 +123,14 @@ df-constraint-audit：任意阶段只读审计约束漂移
 ---
 
 ## 当前机制
+
+### Roadmap 续跑兼容
+
+`df-plan` 从 `devflow/roadmap.md` 续跑时按优先级选择：`下一项`，再到 `未开始`；每个状态内先匹配标准 `状态：...` 行，再匹配 legacy 裸标记。legacy 只用于没有独立状态行的旧条目；启动前必须补写成标准状态行。
+
+### Runtime helper 与 issue 压缩
+
+`runtime/devflow_cli.py` 是本仓库发布的确定性 helper 正本；本机副本位于 `~/.codex/local/devflow/`。`df-uat` 的 issue 分层硬阻断由 `compact-issues` 执行，历史内容迁移到 feature-local `evidence/`，活跃 `issues.yaml` 保留 `history_ref`。
 
 ### 分层 codebase map
 

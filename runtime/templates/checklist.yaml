@@ -1,0 +1,23 @@
+items:
+  - id: DF-001
+    title: "补全计划与验证门禁"
+    status: pending
+    owner: main
+    paths: []
+    validation: []
+  - id: DF-002
+    title: "确认设计文档是否需要同步更新；若影响系统框架正本，已更新对应 docs/design 文档"
+    status: pending
+    owner: main
+    paths:
+      - docs/design/
+    validation:
+      - "说明无需更新的理由，或列出已同步的设计文档路径"
+  - id: DF-003
+    title: "确认发布闭环是否适用；若目标环境为 dev-full/online 或涉及 Dify/容器/线上对象，已完成发布、自检与生效确认"
+    status: pending
+    owner: main
+    paths:
+      - docs/ops/
+    validation:
+      - "不适用时写明理由；适用时附发布命令、线上/本地自检和生效确认证据"

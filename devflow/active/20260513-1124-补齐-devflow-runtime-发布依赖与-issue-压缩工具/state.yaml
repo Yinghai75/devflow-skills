@@ -1,0 +1,14 @@
+title: "补齐 DevFlow runtime 发布依赖与 issue 压缩工具"
+lane: "high-risk"
+target_env: "local"
+status: validated
+created_at: "2026-05-13 11:24:23 CST"
+updated_at: "2026-05-13 13:20:00 CST"
+current_step: "checklist 完成，等待 $df-uat 或 $df-accept"
+execution_authorized: true
+execution_authorization_source: "$df-execute"
+red_evidence: "公开仓库缺 runtime 正本；df-uat 缺 compact-issues helper；旧 run_gate 使用 shell=True"
+validation_evidence: "evidence/manifest.json"
+selected_gates:
+  - devflow-runtime-unit
+  - git-diff-check

@@ -1,0 +1,379 @@
+import tempfile
+import unittest
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from devflow_cli import (
+    TEMPLATE_DIR,
+    accept_feature,
+    add_uat_issue,
+    create_feature,
+    ensure_shared,
+    existing_uat_issue_ids,
+    infer_lane,
+    is_executable_command,
+    recommend_gates,
+    registry_gates,
+    restore_handoff,
+    run_gate,
+    save_handoff,
+    update_state,
+)
+from devflow_issues import compact_issues
+
+
+class DevFlowCliTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_create_feature_generates_required_files_and_parseable_frontmatter(self):
+        feature = create_feature(
+            repo=self.repo,
+            title="修复 Dify 状态机回填",
+            lane="high-risk",
+            goal="确保状态机回填不会破坏主链状态",
+            constraints=["不改线上对象"],
+            success=["新增防炸门禁"],
+        )
+
+        expected = {
+            "context.md",
+            "plan.md",
+            "checklist.yaml",
+            "state.yaml",
+            "validation.md",
+            "uat.md",
+            "issues.yaml",
+            "handoff.md",
+            "acceptance.md",
+        }
+        self.assertEqual(expected, {p.name for p in feature.iterdir() if p.is_file()})
+        self.assertTrue((self.repo / "devflow/shared/gate_registry.yaml").exists())
+        self.assertTrue((self.repo / "devflow/shared/golden_sets").is_dir())
+        self.assertTrue((self.repo / "devflow/shared/codebase_map/OVERVIEW.md").exists())
+        self.assertTrue((self.repo / "devflow/shared/codebase_map/modules").is_dir())
+
+        plan = (feature / "plan.md").read_text(encoding="utf-8")
+        self.assertTrue(plan.startswith("---\n"))
+        self.assertIn('lane: "high-risk"', plan)
+        self.assertIn("修复 Dify 状态机回填", plan)
+        self.assertIn("## 非目标", plan)
+        context = (feature / "context.md").read_text(encoding="utf-8")
+        checklist = (feature / "checklist.yaml").read_text(encoding="utf-8")
+        self.assertIn('target_env: "local"', context)
+        self.assertIn("map_modules_read:", context)
+        self.assertIn("codebase_map_waiver:", context)
+        self.assertIn("确认设计文档是否需要同步更新", checklist)
+        self.assertIn("确认发布闭环是否适用", checklist)
+        acceptance = (feature / "acceptance.md").read_text(encoding="utf-8")
+        self.assertIn("codebase_map_checked: false", acceptance)
+        self.assertIn("truth_doc_checked: false", acceptance)
+        self.assertIn("golden_set_checked: false", acceptance)
+
+    def test_ensure_shared_creates_codebase_map_overview(self):
+        ensure_shared(self.repo)
+
+        overview = (self.repo / "devflow/shared/codebase_map/OVERVIEW.md").read_text(encoding="utf-8")
+
+        self.assertIn("仓库索引", overview)
+        self.assertTrue((self.repo / "devflow/shared/codebase_map/modules").is_dir())
+
+    def test_default_gate_registry_has_no_placeholder_commands(self):
+        ensure_shared(self.repo)
+        feature = create_feature(self.repo, "默认门禁", "standard", "检查默认 registry", [], [])
+
+        commands = [str(gate.get("command", "")) for gate in registry_gates(feature)]
+
+        self.assertGreaterEqual(len(commands), 5)
+        for command in commands:
+            self.assertTrue(is_executable_command(command), command)
+            self.assertNotIn("按项目", command)
+            self.assertNotIn("待补充", command)
+
+    def test_fast_lane_validation_keeps_fast_note(self):
+        feature = create_feature(self.repo, "快速文档", "fast", "补文档", [], [])
+
+        validation = (feature / "validation.md").read_text(encoding="utf-8")
+
+        self.assertIn("fast 车道可轻量填写", validation)
+
+    def test_create_feature_skips_hidden_template_files(self):
+        hidden = TEMPLATE_DIR / ".DS_Store"
+        hidden.write_text("不应生成", encoding="utf-8")
+        try:
+            feature = create_feature(self.repo, "隐藏模板", "standard", "检查模板", [], [])
+        finally:
+            hidden.unlink(missing_ok=True)
+
+        self.assertFalse((feature / ".DS_Store").exists())
+
+    def test_save_and_restore_handoff_records_current_breakpoint(self):
+        feature = create_feature(self.repo, "局部修复", "standard", "完成修复", [], [])
+
+        save_handoff(feature, "正在执行 checklist 第 2 项", next_steps=["运行单测"])
+        restored = restore_handoff(self.repo)
+
+        self.assertEqual(feature, restored.feature_dir)
+        self.assertIn("正在执行 checklist 第 2 项", restored.content)
+        self.assertIn("运行单测", restored.content)
+
+    def test_update_state_keeps_single_updated_at_field(self):
+        feature = create_feature(self.repo, "状态更新", "standard", "完成修复", [], [])
+
+        update_state(feature, current_step="第一步")
+        update_state(feature, current_step="第二步")
+
+        state = (feature / "state.yaml").read_text(encoding="utf-8")
+        self.assertEqual(1, state.count("updated_at:"))
+
+    def test_add_uat_issue_creates_feature_local_issue(self):
+        feature = create_feature(self.repo, "UAT 问题", "standard", "闭环 UAT", [], [])
+
+        issue = add_uat_issue(feature, "按钮无响应", "点击保存后没有提示", severity="high")
+
+        issues = (feature / "issues.yaml").read_text(encoding="utf-8")
+        uat = (feature / "uat.md").read_text(encoding="utf-8")
+        self.assertEqual("UAT-001", issue.issue_id)
+        self.assertIn("按钮无响应", issues)
+        self.assertIn("点击保存后没有提示", uat)
+
+    def test_add_uat_issue_uses_archived_history_for_next_id(self):
+        feature = create_feature(self.repo, "UAT 历史分层", "standard", "闭环 UAT", [], [])
+        evidence = feature / "evidence"
+        evidence.mkdir()
+        (evidence / "uat-full-history.yaml").write_text(
+            """issues:
+  - id: UAT-010
+    status: closed
+""",
+            encoding="utf-8",
+        )
+
+        issue = add_uat_issue(feature, "新失败面", "复测发现新的问题", severity="medium")
+
+        self.assertEqual("UAT-011", issue.issue_id)
+        self.assertEqual([11], existing_uat_issue_ids(feature)[-1:])
+
+    def test_add_uat_issue_rejects_invalid_severity(self):
+        feature = create_feature(self.repo, "UAT 严重度", "standard", "闭环 UAT", [], [])
+
+        with self.assertRaisesRegex(ValueError, "无效严重度"):
+            add_uat_issue(feature, "按钮无响应", "点击保存后没有提示", severity="urgent")
+
+    def test_recommend_gates_matches_high_risk_surfaces(self):
+        feature = create_feature(self.repo, "登录恢复", "high-risk", "修复登录", [], [])
+
+        result = recommend_gates(feature, surfaces=["dify", "state-machine", "login"])
+
+        self.assertIn("dify-export-validate", result.selected_ids)
+        self.assertIn("state-machine-regression", result.selected_ids)
+        self.assertIn("official-site-login-smoke", result.selected_ids)
+        validation = (feature / "validation.md").read_text(encoding="utf-8")
+        self.assertIn("Impact Map", validation)
+        self.assertIn("RED Evidence", validation)
+
+    def test_accept_blocks_high_risk_without_effective_gate(self):
+        feature = create_feature(self.repo, "高风险无门禁", "high-risk", "改状态机", [], [])
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("高风险任务未选择有效防炸门禁", result.messages)
+
+    def test_accept_blocks_incomplete_checklist(self):
+        feature = create_feature(self.repo, "未完成 checklist", "standard", "局部修复", [], [])
+        update_state(feature, status="validated")
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("checklist 仍有未完成项", result.messages)
+
+    def test_accept_blocks_open_uat_issues(self):
+        feature = create_feature(self.repo, "开放 UAT", "standard", "修复 UAT", [], [])
+        self.complete_default_checklist(feature)
+        update_state(feature, status="validated")
+        add_uat_issue(feature, "按钮无响应", "点击保存后没有提示")
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("仍有未关闭 UAT issue", result.messages)
+
+    def test_accept_does_not_treat_description_status_as_open_issue(self):
+        feature = create_feature(self.repo, "描述包含 status", "standard", "修复 UAT", [], [])
+        self.complete_default_checklist(feature)
+        (feature / "issues.yaml").write_text(
+            """issues:
+  - id: UAT-001
+    title: "描述包含状态"
+    severity: medium
+    status: closed
+    description: "复现日志包含 status: open 字样"
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertTrue(result.ok)
+
+    def test_accept_warns_empty_validation_for_standard_lane(self):
+        feature = create_feature(self.repo, "空验证", "standard", "局部修复", [], [])
+        self.complete_default_checklist(feature)
+
+        result = accept_feature(feature)
+
+        self.assertTrue(result.ok)
+        self.assertIn("validation.md 仍是初始模板", result.warnings)
+
+    def test_accept_blocks_string_evidence_without_manifest(self):
+        feature = create_feature(self.repo, "字符串证据", "high-risk", "改状态机", [], [])
+        recommend_gates(feature, surfaces=["state-machine"])
+        self.complete_default_checklist(feature)
+        update_state(
+            feature,
+            status="validated",
+            red_evidence="已新增失败样本并确认失败",
+            validation_evidence="state-machine-regression 已通过",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("缺少机器生成的门禁证据", result.messages)
+
+    def test_run_gate_records_evidence_and_accept_archives_feature(self):
+        feature = create_feature(self.repo, "高风险有门禁", "high-risk", "改状态机", [], [])
+        recommend_gates(feature, surfaces=["state-machine"])
+        self.complete_default_checklist(feature)
+        update_state(feature, status="validated", red_evidence="已确认 state-machine-regression 的 RED 样本")
+        self.replace_gate_command(feature, "state-machine-regression", "uv --version")
+
+        evidence = run_gate(feature, "state-machine-regression")
+        result = accept_feature(feature)
+
+        self.assertEqual("passed", evidence.status)
+        self.assertTrue(result.ok)
+        self.assertFalse(feature.exists())
+        self.assertTrue((self.repo / "devflow/archive" / feature.name).exists())
+
+    def test_run_gate_rejects_shell_control_tokens(self):
+        feature = create_feature(self.repo, "拒绝 shell 控制符", "high-risk", "改状态机", [], [])
+        self.replace_gate_command(feature, "state-machine-regression", "uv --version && touch pwned")
+
+        with self.assertRaisesRegex(ValueError, "缺少可执行 command"):
+            run_gate(feature, "state-machine-regression")
+        self.assertFalse((self.repo / "pwned").exists())
+
+    def test_compact_issues_keeps_history_ref_and_next_id(self):
+        feature = create_feature(self.repo, "压缩 UAT issue", "standard", "闭环 UAT", [], [])
+        long_history = "\n".join(f"      - step: {index}" for index in range(55))
+        (feature / "issues.yaml").write_text(
+            f"""issues:
+  - id: UAT-001
+    title: "旧失败面"
+    severity: high
+    status: closed
+    description: "已关闭但历史很长"
+    investigation:
+{long_history}
+  - id: UAT-010
+    title: "当前失败面"
+    severity: medium
+    status: open
+    description: "仍需处理"
+""",
+            encoding="utf-8",
+        )
+
+        result = compact_issues(feature)
+        issue = add_uat_issue(feature, "新失败面", "复测发现新的问题", severity="medium")
+        issues = (feature / "issues.yaml").read_text(encoding="utf-8")
+
+        self.assertEqual(1, result.compacted_count)
+        self.assertIsNotNone(result.history_path)
+        self.assertIn("history_ref:", issues)
+        self.assertNotIn("step: 54", issues)
+        self.assertEqual("UAT-011", issue.issue_id)
+
+    def test_failed_gate_blocks_accept(self):
+        feature = create_feature(self.repo, "失败门禁", "high-risk", "改状态机", [], [])
+        recommend_gates(feature, surfaces=["state-machine"])
+        self.complete_default_checklist(feature)
+        update_state(feature, status="validated", red_evidence="已确认 state-machine-regression 的 RED 样本")
+        self.replace_gate_command(feature, "state-machine-regression", "uv --unknown-devflow-flag")
+
+        evidence = run_gate(feature, "state-machine-regression")
+        result = accept_feature(feature)
+
+        self.assertEqual("failed", evidence.status)
+        self.assertFalse(result.ok)
+        self.assertIn("存在失败门禁证据", result.messages)
+
+    def test_run_gate_rejects_placeholder_command(self):
+        feature = create_feature(self.repo, "占位门禁", "high-risk", "改状态机", [], [])
+        recommend_gates(feature, surfaces=["state-machine"])
+        self.replace_gate_command(feature, "state-machine-regression", "TODO: 按实际命令填写")
+
+        with self.assertRaisesRegex(ValueError, "缺少可执行 command"):
+            run_gate(feature, "state-machine-regression")
+
+    def test_infer_lane_upgrades_high_risk_surfaces(self):
+        lane = infer_lane(
+            requested_lane="standard",
+            title="修复 Dify workflow 状态机",
+            goal="涉及数据写入和登录恢复",
+            surfaces=["workflow"],
+            paths=["workflows/main.yml"],
+        )
+
+        self.assertEqual("high-risk", lane)
+
+    def test_online_target_env_upgrades_to_high_risk(self):
+        lane = infer_lane(
+            requested_lane="standard",
+            title="发布线上配置",
+            goal="同步线上生效",
+            target_env="online",
+        )
+
+        self.assertEqual("high-risk", lane)
+
+    def complete_default_checklist(self, feature: Path) -> None:
+        (feature / "checklist.yaml").write_text(
+            """items:
+  - id: DF-001
+    title: "补全计划与验证门禁"
+    status: done
+    owner: main
+    paths: []
+    validation: []
+""",
+            encoding="utf-8",
+        )
+
+    def replace_gate_command(self, feature: Path, gate_id: str, command: str) -> None:
+        registry = self.repo / "devflow" / "shared" / "gate_registry.yaml"
+        lines = registry.read_text(encoding="utf-8").splitlines()
+        output = []
+        in_gate = False
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("- id:"):
+                in_gate = stripped == f"- id: {gate_id}"
+            if in_gate and stripped.startswith("command:"):
+                output.append(f'    command: "{command}"')
+            else:
+                output.append(line)
+        registry.write_text("\n".join(output) + "\n", encoding="utf-8")
+
+
+if __name__ == "__main__":
+    unittest.main()

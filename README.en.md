@@ -62,6 +62,8 @@ Use this in agent environments that support installing GitHub skill repositories
 mkdir -p ~/.codex/skills
 git clone https://github.com/Yinghai75/devflow-skills.git /tmp/devflow-skills-codex
 cp -R /tmp/devflow-skills-codex/df-* ~/.codex/skills/
+mkdir -p ~/.codex/local/devflow
+cp -R /tmp/devflow-skills-codex/runtime/* ~/.codex/local/devflow/
 
 # Claude Code
 mkdir -p ~/.claude/skills
@@ -70,6 +72,10 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ```
 
 For other agents, copy the `df-*` directories into that agent's skills directory. Each `df-*` directory is an independent skill with `SKILL.md` as its entry point.
+
+### Runtime Helper
+
+`df-plan`, `df-status`, `df-uat`, and gate execution call `~/.codex/local/devflow/devflow_cli.py`. If your installer only copied `df-*`, also sync this repository's `runtime/` directory to `~/.codex/local/devflow/`.
 
 ---
 
@@ -117,6 +123,14 @@ Risk lanes are classified by `df-plan`:
 ---
 
 ## Current Mechanics
+
+### Roadmap Continuation Compatibility
+
+When `df-plan` continues from `devflow/roadmap.md`, status priority is `下一项` first, then `未开始`; within each status, it matches the standard `状态：...` line before legacy bare markers. Legacy status only applies to old items without a dedicated status line; before starting, the item must be normalized to a standard status line.
+
+### Runtime Helper And Issue Compaction
+
+`runtime/devflow_cli.py` is the published deterministic helper source for this repository; the local runtime copy lives at `~/.codex/local/devflow/`. The `df-uat` issue compaction gate is handled by `compact-issues`, which moves history into feature-local `evidence/` and leaves `history_ref` in the active `issues.yaml`.
 
 ### Layered Codebase Map
 

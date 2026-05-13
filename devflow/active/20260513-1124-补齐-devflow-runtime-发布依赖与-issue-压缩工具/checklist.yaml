@@ -1,0 +1,76 @@
+items:
+  - id: DF-001
+    title: "记录 RED 证据：公开仓库缺 runtime 正本、compact-issues 缺 helper、run-gate 使用 shell=True"
+    status: done
+    owner: main
+    paths:
+      - README.md
+      - df-uat/SKILL.md
+      - /Users/yinghai/.codex/local/devflow/devflow_cli.py
+      - /Users/yinghai/.codex/local/devflow/tests/test_devflow_cli.py
+    validation:
+      - "证据写入 validation.md 的 TDD/RED Evidence；只引用文件路径和当前失败条件"
+  - id: DF-002
+    title: "建立 runtime helper 发布正本和安装同步路径"
+    status: done
+    owner: executor
+    paths:
+      - runtime/
+      - README.md
+      - README.en.md
+      - df-plan/SKILL.md
+      - df-status/SKILL.md
+    validation:
+      - "公开安装说明与 skill 调用路径一致；本机目标路径仍可被现有 skills 调用"
+  - id: DF-003
+    title: "把 run-gate 改为 shell=False 执行并补拒绝 shell 控制符测试"
+    status: done
+    owner: executor
+    paths:
+      - runtime/devflow_cli.py
+      - runtime/tests/test_devflow_cli.py
+      - /Users/yinghai/.codex/local/devflow/devflow_cli.py
+      - /Users/yinghai/.codex/local/devflow/tests/test_devflow_cli.py
+    validation:
+      - "`uv run python runtime/tests/test_devflow_cli.py` PASS；本机副本同测 PASS"
+  - id: DF-004
+    title: "实现 compact-issues helper 并保留 history_ref 与 UAT id 唯一性"
+    status: done
+    owner: executor
+    paths:
+      - runtime/devflow_cli.py
+      - runtime/tests/test_devflow_cli.py
+      - df-uat/SKILL.md
+    validation:
+      - "fixture 压缩后 issues.yaml 可解析；history_ref 指向 evidence 历史文件；existing_uat_issue_ids 覆盖历史 id"
+  - id: DF-005
+    title: "同步 skill 与 README 中英文说明"
+    status: done
+    owner: main
+    paths:
+      - df-uat/SKILL.md
+      - df-execute/SKILL.md
+      - df-plan/SKILL.md
+      - README.md
+      - README.en.md
+    validation:
+      - "被修改 skill 通过 quick_validate.py；README skill 数量和 runtime 说明一致"
+  - id: DF-006
+    title: "同步本机 runtime 安装副本并跑本地门禁"
+    status: done
+    owner: main
+    paths:
+      - /Users/yinghai/.codex/local/devflow/
+      - devflow/active/20260513-1124-补齐-devflow-runtime-发布依赖与-issue-压缩工具/evidence/
+    validation:
+      - "`uv run python /Users/yinghai/.codex/local/devflow/tests/test_devflow_cli.py` PASS"
+      - "`git diff --check` PASS"
+  - id: DF-007
+    title: "确认设计文档和发布闭环豁免"
+    status: done
+    owner: main
+    paths:
+      - devflow/active/20260513-1124-补齐-devflow-runtime-发布依赖与-issue-压缩工具/validation.md
+      - devflow/active/20260513-1124-补齐-devflow-runtime-发布依赖与-issue-压缩工具/handoff.md
+    validation:
+      - "说明无需 docs/design 与 dev-full/online 发布闭环；残余风险写入 handoff"

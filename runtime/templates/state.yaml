@@ -1,0 +1,8 @@
+title: "{{title}}"
+lane: "{{lane}}"
+target_env: "{{target_env}}"
+status: planning
+created_at: "{{created_at}}"
+updated_at: "{{created_at}}"
+current_step: "初始化 feature"
+selected_gates: []

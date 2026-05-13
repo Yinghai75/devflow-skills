@@ -18,7 +18,7 @@ metadata:
 > 如果 feature 目录已存在（止损回流、恢复、df-fix 升级等），跳过本步，直接进入"第二步"。
 
 1. `git status --short` 检查工作区，读取相关 `AGENTS.md`。
-2. Roadmap 续跑：读取 `devflow/roadmap.md`，优先选择第一个 `状态：下一项`，否则选择第一个 `状态：未开始`；无状态条目只作为待整理 backlog，不自动启动。用户明确提出全新目标时除外。
+2. Roadmap 续跑：读取 `devflow/roadmap.md`，选择顺序固定为第一个 `下一项`，再第一个 `未开始`。每个状态先匹配独立 `状态：...` 行；条目无独立状态行时，才读取标题、首行或紧邻标题元信息中的 legacy 裸标记。使用 legacy 标记启动前，先补写独立状态行。无状态且无 legacy 标记的条目只作为待整理 backlog，不自动启动。用户明确提出全新目标时除外。
 3. 分诊车道（`fast` / `standard` / `high-risk`）和目标环境（`local` / `dev-fast` / `dev-full` / `online`）。`online` 自动升级为 `high-risk`；脚本会根据标题、目标、surfaces、paths 自动升级，不要手工降级。
 4. 长目标分解：拆成"当前 feature + 后续 backlog"，backlog 写入 `devflow/roadmap.md`。
 5. 运行脚本创建目录：

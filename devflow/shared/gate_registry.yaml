@@ -1,0 +1,50 @@
+# DevFlow 项目门禁注册表。按项目实际命令更新 command 字段。
+gates:
+  - id: devflow-runtime-unit
+    type: regression
+    surfaces: [devflow-runtime, cli, uat, security]
+    command: "uv run python /Users/yinghai/.codex/local/devflow/tests/test_devflow_cli.py"
+    risk_blocked: "runtime helper、issue 编号或 gate evidence 行为回归"
+    failure_signal: "DevFlow runtime 单测失败"
+  - id: git-diff-check
+    type: regression
+    surfaces: [docs, skills, local]
+    command: "git diff --check"
+    risk_blocked: "空白错误、冲突标记或不可提交 diff"
+    failure_signal: "git diff --check 失败"
+  - id: unit-tests
+    type: regression
+    surfaces: [python, unit, local]
+    command: "uv run python -m unittest discover"
+    risk_blocked: "局部逻辑回归"
+    failure_signal: "单元测试失败"
+  - id: dify-export-validate
+    type: integration
+    surfaces: [dify, workflow, online-object]
+    command: "uv run python scripts/gen_dify_dsl.py --check"
+    risk_blocked: "Dify 工作流结构或发布对象漂移"
+    failure_signal: "导出校验、节点连线或关键字段不一致"
+  - id: state-machine-regression
+    type: regression
+    surfaces: [state-machine, main-state, orchestration]
+    command: "uv run python scripts/run_main_chatflow_regression_gate.py --json"
+    risk_blocked: "主状态流转、阶段边界或回填逻辑被破坏"
+    failure_signal: "历史样本状态不一致或阶段断言失败"
+  - id: dev-fast-integration
+    type: integration
+    surfaces: [integration, dev-fast, cross-module, dify, orchestration]
+    command: "uv run python scripts/run_dev_fast_gate.py --json"
+    risk_blocked: "跨模块契约、Dify 邻域门禁或 dev-fast 集成路径被破坏"
+    failure_signal: "dev-fast 聚合门禁失败或生成失败项"
+  - id: dev-full-e2e
+    type: e2e
+    surfaces: [e2e, dev-full, dify, container, online-object]
+    command: "uv run python scripts/run_dev_full_gate.py --json"
+    risk_blocked: "本地完整复刻、Dify 容器联调或端到端样本路径失效"
+    failure_signal: "dev-full 完整门禁失败或样本回放不一致"
+  - id: official-site-login-smoke
+    type: e2e
+    surfaces: [login, official-site, erp-executor, browser]
+    command: "uv run python -m pytest -q"
+    risk_blocked: "首轮登录恢复、权限或浏览器执行器边界被破坏"
+    failure_signal: "登录流程无法完成或职责边界被绕回 Dify"
