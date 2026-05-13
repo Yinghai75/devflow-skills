@@ -39,9 +39,9 @@ metadata:
 
 归档脚本通过后再次检查 `git status --short`，只暂存归档相关路径并提交；若还有业务改动未提交，先回到 `$df-execute` 或 `$df-fix` 分组提交，不要把未归档业务改动混进归档提交。
 
-脚本通过前后都必须做一次人工 UAT 覆盖审计；当前 CLI 只能检查 checklist、issue 和 manifest，不能判断“实现了某个真实用户路径但没做人工 UAT”。发现覆盖缺口时，即使脚本通过也不得归档。
+脚本前必须做人工 UAT 覆盖审计；当前 CLI 只能检查 checklist、issue 和 manifest，不能判断“实现了某个真实用户路径但没做人工 UAT”。发现覆盖缺口时，即使脚本通过也不得归档。脚本后只做确认性复核，确认归档移动和状态更新没有引入新缺口。
 
-脚本通过前后也必须做 codebase map / truth doc / golden set 三项 stale gate（检查项 12-14）；CLI 不会自动判断过期，agent 必须主动检查。发现缺口时即使脚本通过也不得归档。
+脚本前必须做 codebase map / truth doc / golden set 三项 stale gate（检查项 12-14）；CLI 不会自动判断过期，agent 必须主动检查。脚本后只做确认性复核，发现缺口时即使脚本通过也不得归档。
 
 若 standard 车道没有选择门禁，且 `validation.md` 仍是初始模板，脚本会给出非阻断警告。看到该警告时应补上实际验证记录；不要把 warning 当成防炸门禁。
 

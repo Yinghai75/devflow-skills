@@ -44,16 +44,16 @@ devflow/shared/codebase_map/
 1. 读 `OVERVIEW.md`。
 2. 从当前任务的 `paths`/`surfaces` 推导命中哪些模块卡片（按 OVERVIEW 的卡片索引匹配路径前缀）。
 3. 只读命中的卡片，不读其他。
-4. 如果某路径前缀无对应卡片 → 补建新卡片（按 5 节模板扫描该路径）。
+4. 如果某路径前缀无对应卡片 → 补建新卡片（按 3 节模板扫描该路径）。
 5. 在调用方文档记录 `map_modules_read: [material-server, edge-plugin]`。
 
 ## 增量刷新（df-execute / df-fix）
 
 每次 git checkpoint 后：
 
-1. 从 `git diff --name-only HEAD~1 HEAD`（或 stash diff）获取本轮修改文件。
+1. 从 `git diff --name-only HEAD~1 HEAD` 获取本轮修改文件；WIP 用 `git stash show --name-only stash@{0}` 或等价 stash 引用。
 2. 按 OVERVIEW 的卡片索引匹配修改路径 → 确定命中哪些卡片。
-3. 对命中的卡片：重新扫描该模块目录，更新卡片的 5 节内容。
+3. 对命中的卡片：重新扫描该模块目录，更新卡片的 3 节内容。
 4. 如果修改涉及新增顶层目录或新增模块 → 同时更新 OVERVIEW 的目录 atlas 和卡片索引。
 5. 未命中任何卡片的修改 → 不做（下次 plan 补建）。
 

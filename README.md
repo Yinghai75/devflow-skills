@@ -6,12 +6,12 @@
 
 [English](./README.en.md) · **中文**
 
-**个人开发者的轻量 AI 编码工作流：10 个 skills，约 875 行指令，覆盖 feature 计划、执行、UAT、修复、归档与恢复**
+**个人开发者的轻量 AI 编码工作流：10 个 skills，约 930 行指令，覆盖 feature 计划、执行、UAT、修复、归档与恢复**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
   <img src="https://img.shields.io/badge/skills-10-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/instructions-~875-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/instructions-~930-10B981?style=flat-square" alt="Instructions"/>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
@@ -33,7 +33,7 @@ DevFlow 解决的是一个很窄的问题：
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 个 skills | 1 个 agent 文件 | 约 3,200 行 |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 个 workflows | 33 个 agent 文件 | 约 47,600 行 |
-| **DevFlow** | **10 个 skills** | **5 类精简子代理角色** | **约 875 行** |
+| **DevFlow** | **10 个 skills** | **5 类精简子代理角色** | **约 930 行** |
 
 核心取舍：
 
@@ -76,7 +76,7 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ## 快速上手
 
 ```bash
-/df-plan        # 启动并规划 feature：创建目录、分诊车道、写计划和 UAT 覆盖矩阵
+/df-plan        # 启动并规划 feature：必要时先做 pre-plan discovery，再写计划和 UAT 覆盖矩阵
 /df-backlog     # 先不做：把新想法登记到 roadmap/backlog，不打断当前 feature
 /df-codebase-map # 维护代码地图：OVERVIEW + 命中模块卡片，节省上下文
 /df-constraint-audit # 查约束漂移：审计门禁、状态语义、接口契约是否重复或矛盾
@@ -111,6 +111,8 @@ df-constraint-audit：任意阶段只读审计约束漂移
 - **fast**：低风险文档、小修复、纯展示或局部逻辑。
 - **standard**：常规多文件开发，按 plan → execute → UAT → fix → accept 推进。
 - **high-risk**：状态机、线上发布、数据写入、跨模块编排、真实浏览器或外部站点路径；要求 RED 证据、防炸门禁和发布闭环。
+
+`df-plan` 也是 pre-plan discovery 入口，覆盖 new project bootstrap、brownfield、仓内 greenfield 和 architecture adjustment 回流。边界不清时先澄清用户/角色、产品形态、技术栈、架构边界、合同和首个垂直切片；清楚后才写正式计划。`df-plan` 不执行技术栈脚手架，脚手架任务交给 `$df-execute`。
 
 ---
 
@@ -183,13 +185,15 @@ df-constraint-audit：任意阶段只读审计约束漂移
 
 `df-fix` 更保守：主代理保留 issue 判定、车道分流、`q1/q2/q3`、止损、关闭 issue 和最终状态；子代理只做边界清楚的定位、窄补丁和验证。同一用户可见失败面的核心修复不得并发多个 executor。
 
+执行或修复过程中如果发现必须改变模块职责、公共合同、状态归属、数据流方向、共享抽象或部署边界，必须暂停当前 checklist 或 fix，记录证据并回到 `df-plan` 做 architecture adjustment；不得在 `df-execute` 或 `df-fix` 中顺手重构。
+
 ---
 
 ## Skills 总览
 
 | Skill | 做什么 | 产出什么 |
 | --- | --- | --- |
-| `df-plan` | 启动并规划 feature：创建目录、分诊车道、读取 codebase map、收敛灰区、写计划和 UAT 覆盖矩阵。 | `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`uat.md`、`state.yaml` |
+| `df-plan` | 启动并规划 feature；必要时先做 new project bootstrap / pre-plan discovery，目标清楚后写计划和 UAT 覆盖矩阵。 | `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`uat.md`、`state.yaml` |
 | `df-backlog` | 登记不应打断当前 feature 的新事项。 | 更新 `devflow/roadmap.md` |
 | `df-codebase-map` | 维护分层代码地图：OVERVIEW + 命中模块卡片。 | `devflow/shared/codebase_map/` |
 | `df-constraint-audit` | 只读审计门禁描述、状态语义和接口契约是否与事实源漂移。 | 约束问题清单、建议唯一事实源 |

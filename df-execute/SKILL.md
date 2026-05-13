@@ -30,6 +30,7 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
    - 可用证据仅限近邻精确既有模式、官方文档或 runtime probe；无证据只能调查或加 probe，不得直接实现。
 3. 行为变更先按 TDD 写 RED 测试或 golden sample，确认失败后实现。
 4. 实现时优先遵守仓库现有模式；风险扩散时回到 `$df-plan` 补计划。
+   - 若执行中发现需要改变模块职责、公共合同、状态归属、数据流方向、共享抽象或部署边界，暂停当前 checklist，更新 `handoff.md`，并把 `state.yaml` 写为 `status: planning`、`current_step: "architecture adjustment 回流"`；随后回到 `$df-plan`，不得在执行期顺手重构。
 5. 每完成一项：
    - 更新 `checklist.yaml` 状态。
    - 更新 `state.yaml` 的 `current_step`；高风险 RED 证据可写入 `red_evidence`。
@@ -65,8 +66,10 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 - 同一实现方案连续 3 次失败或导致新的回归。
 - 验证失败原因不清，且继续修改需要猜测。
 - 实际影响面超过 `plan.md` / `validation.md` 记录的范围。
+- 继续推进需要改变模块职责、公共合同、状态归属、数据流方向、共享抽象或部署边界。
+- 同一文件/模块在当前 feature 中被修改超过 3 次仍未通过。
 
-暂停时更新 `state.yaml`、`checklist.yaml` 和 `handoff.md`，写清当前假设、已试过的方案、证据、下一步选项。
+暂停时更新 `state.yaml`、`checklist.yaml` 和 `handoff.md`，写清当前假设、已试过的方案、证据、下一步选项。重复修改或跨组件链路止损时写入 `doom_loop_breaker`，并说明应切 `$df-fix` / `integration-debug` 还是回 `$df-plan`。
 
 ## 子代理使用
 
@@ -83,12 +86,12 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 
 ### 角色
 
-| 角色 | 模型 | 可写范围 |
+| 角色 | 用途 | 可写范围 |
 |------|------|---------|
-| `explorer` | 5.3 low | 无 |
-| `executor` / `worker` | 5.3 medium | 任务指定路径 |
-| `verifier` | 5.4 medium | evidence 目录 |
-| `planner` | 5.5 xhigh | feature 计划文件 |
+| `explorer` | 只读搜索、定位、比较 | 无 |
+| `executor` / `worker` | 边界清楚的实现或窄补丁 | 任务指定路径 |
+| `verifier` | 门禁、diff 审查、运行态复核 | evidence 目录 |
+| `planner` | 补计划或架构回流草案 | feature 计划文件 |
 
 ### 编排
 

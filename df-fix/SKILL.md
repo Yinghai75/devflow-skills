@@ -15,7 +15,7 @@ metadata:
 - 本 skill 闭环优先级高于继续 UAT；关闭 issue 后再回 `$df-uat`。
 
 ## 能力边界
-AI 有 computer use 能力，可操作真实 Edge 浏览器和容器；但跨 3+ 运行中组件、运行态漂移、或同一 issue 已跨 3+ 组件/文件修过仍未关闭时，已超出单次会话的有效操作半径。此类问题切 `integration-debug`：只加探针和读运行态快照，定位单一断点后才能降级修复，禁止边修边验、修一环看一环。
+即使当前项目环境可操作真实浏览器和容器，跨 3+ 运行中组件、运行态漂移、或同一 issue 已跨 3+ 组件/文件修过仍未关闭时，也已超出单次会话的有效操作半径。此类问题切 `integration-debug`：只加探针和读运行态快照，定位单一断点后才能降级修复，禁止边修边验、修一环看一环。
 
 ## 车道分流
 读取目标 issue 后锁定 `issue_scope`，读取 `codebase_map/OVERVIEW.md` 并只读命中的模块卡片。随后用排除法分流，并在 `issues.yaml` 或 `handoff.md` 的本轮最新段落写入 `map_modules_read`、`fix_lane`、`lane_reason`、`q1_causal_chain`、`q2_regression_list`、`q3_platform_assumptions`；fast-fix 快速路径只需先写 `q1_causal_chain`。未落盘前不得改实现文件。分流后用 `[绿灯] fast-fix`、`[黄灯] scoped-fix`、`[红灯] integration-debug/high-risk-fix` 向用户报告。
@@ -30,6 +30,8 @@ AI 有 computer use 能力，可操作真实 Edge 浏览器和容器；但跨 3+
 | `high-risk-fix` | 跨 Dify/插件/Broker/`nas-agent`/`erp-executor`/容器/发布链路；验收口径或职责边界变化；真实浏览器/登录态/外部站点/发布后路径；post-acceptance；`fetch` 改包、DOM 猜测、乐观渲染修正、本地气泡改字；回滚/撤销/重写已通过用户验收的修复 | 只调查、登记证据；若确认是单点错误，按 high-risk 收窄闸门处理，否则回 `$df-plan` |
 | `fast-fix` | 仅文案、样式、单组件展示、单函数纯逻辑或测试断言补漏，且不命中高风险 | 最小 RED、最小修复、targeted 验证 |
 | `scoped-fix` | 默认车道：当前 feature 影响面内的受控回归 | 写回归面清单，同一路径复现，修后跑 targeted test、构建和相关门禁 |
+
+若 UAT issue 暴露的是架构缺陷，而不是单点实现错误，例如需要改变模块职责、公共合同、状态归属、数据流方向、共享抽象或部署边界，`df-fix` 只能记录证据和止损结论，随后回 `$df-plan` 走 architecture adjustment；不得把架构重设伪装成 fix 补丁。
 
 强制判定问题：
 - `q1_causal_chain`：描述从最上游源头到用户可见症状的因果链、当前修复点位置、是否能改在更上游；必须写清已通过/已失败/未验证的链路段，以及运行态是否已加载本轮代码。

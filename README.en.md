@@ -6,12 +6,12 @@
 
 **English** · [中文](./README.md)
 
-**A lightweight AI coding workflow for individual developers: 10 skills, about 875 instruction lines, covering planning, execution, UAT, fixes, archival, and recovery**
+**A lightweight AI coding workflow for individual developers: 10 skills, about 930 instruction lines, covering planning, execution, UAT, fixes, archival, and recovery**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
   <img src="https://img.shields.io/badge/skills-10-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/instructions-~875-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/instructions-~930-10B981?style=flat-square" alt="Instructions"/>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
@@ -33,7 +33,7 @@ Rough comparison from current public repositories:
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 skills | 1 agent file | about 3,200 lines |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 workflows | 33 agent files | about 47,600 lines |
-| **DevFlow** | **10 skills** | **5 lightweight sub-agent roles** | **about 875 lines** |
+| **DevFlow** | **10 skills** | **5 lightweight sub-agent roles** | **about 930 lines** |
 
 Core tradeoffs:
 
@@ -76,7 +76,7 @@ For other agents, copy the `df-*` directories into that agent's skills directory
 ## Quick Start
 
 ```bash
-/df-plan        # Start and plan a feature: create the directory, classify risk, write plan and UAT matrix
+/df-plan        # Start and plan a feature: run pre-plan discovery when needed, then write plan and UAT matrix
 /df-backlog     # Later item: record a roadmap/backlog item without interrupting current work
 /df-codebase-map # Code map: maintain OVERVIEW + matching module cards to save context
 /df-constraint-audit # Constraint audit: find duplicated or conflicting gates, status semantics, and contracts
@@ -111,6 +111,8 @@ Risk lanes are classified by `df-plan`:
 - **fast**: low-risk docs, small fixes, pure display, or local logic.
 - **standard**: normal multi-file development through plan, execute, UAT, fix, and accept.
 - **high-risk**: state machines, production releases, data writes, cross-module orchestration, real browser paths, or external sites. Requires RED evidence, blast-radius gates, and release checks.
+
+`df-plan` is also the pre-plan discovery entry point, covering new project bootstrap, brownfield work, greenfield work inside an existing repo, and architecture adjustment. When boundaries are unclear, clarify users/roles, product shape, tech stack, architecture boundaries, contracts, and the first vertical slice before writing the formal plan. `df-plan` does not run tech-stack scaffolding; those tasks belong in `$df-execute`.
 
 ---
 
@@ -183,13 +185,15 @@ Before code changes, `fix_lane`, `q1_causal_chain`, `q2_regression_list`, and `q
 
 `df-fix` is more conservative. The main agent owns issue judgment, lane triage, `q1/q2/q3`, stop-loss, issue closure, and final status. Sub-agents only handle bounded localization, narrow patches, and verification. Multiple executors must not work concurrently on the core fix for the same user-visible failure.
 
+If execution or fixing reveals that module responsibilities, public contracts, state ownership, data-flow direction, shared abstractions, or deployment boundaries must change, the agent must pause the current checklist or fix, record evidence, and return to `df-plan` for architecture adjustment. It must not smuggle that redesign into `df-execute` or `df-fix` as an incidental refactor.
+
 ---
 
 ## Skills
 
 | Skill | What it does | What it outputs |
 | --- | --- | --- |
-| `df-plan` | Start and plan a feature: create the directory, classify risk, read the codebase map, resolve gray areas, write plan and UAT coverage. | `context.md`, `plan.md`, `checklist.yaml`, `validation.md`, `uat.md`, `state.yaml` |
+| `df-plan` | Start and plan a feature; when needed, run new project bootstrap / pre-plan discovery before writing plan and UAT coverage. | `context.md`, `plan.md`, `checklist.yaml`, `validation.md`, `uat.md`, `state.yaml` |
 | `df-backlog` | Record later work without interrupting the current feature. | updated `devflow/roadmap.md` |
 | `df-codebase-map` | Maintain the layered code map: OVERVIEW plus matching module cards. | `devflow/shared/codebase_map/` |
 | `df-constraint-audit` | Read-only audit for drift between gate descriptions, status semantics, contracts, and facts. | constraint findings and source-of-truth recommendations |
