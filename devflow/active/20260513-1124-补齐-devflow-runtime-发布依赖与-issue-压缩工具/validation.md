@@ -9,12 +9,13 @@
 
 ## 执行证据
 
-- `uv run python runtime/tests/test_devflow_cli.py`：PASS，24 tests。
-- `uv run python /Users/yinghai/.codex/local/devflow/tests/test_devflow_cli.py`：PASS，24 tests。
+- `uv run python runtime/tests/test_devflow_cli.py`：PASS，26 tests。
+- `uv run python /Users/yinghai/.codex/local/devflow/tests/test_devflow_cli.py`：PASS，26 tests。
 - `uv run --with pyyaml python /Users/yinghai/.codex/skills/.system/skill-creator/scripts/quick_validate.py df-plan`：PASS。
 - `uv run --with pyyaml python /Users/yinghai/.codex/skills/.system/skill-creator/scripts/quick_validate.py df-uat`：PASS。
 - `git diff --check`：PASS。
 - `evidence/manifest.json`：`devflow-runtime-unit` PASS；`git-diff-check` PASS。
+- Review fix：`compact-issues` 对已有 `history_ref` 幂等；`add_uat_issue` 写 YAML 安全标量；`df-uat` helper 路径改为 `~/.codex/local/devflow/devflow_cli.py`。
 
 ## Blast Radius Guard
 
@@ -41,8 +42,9 @@
 
 ### Golden Set Delta
 
-- 新增 compact fixture：包含 open issue、closed issue、长 investigation、history_ref 和 evidence 历史 id。
+- 新增 compact fixture：包含 open issue、closed issue、长 investigation、history_ref、重复压缩和 evidence 历史 id。
 - 新增 run-gate fixture：包含普通 argv 命令、带引号参数命令、shell 控制符拒绝样本。
+- 新增 issue text fixture：包含双引号、换行和冒号。
 
 ### TDD/RED Evidence
 

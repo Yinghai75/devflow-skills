@@ -397,11 +397,11 @@ def add_uat_issue(
     append_text(
         feature / "issues.yaml",
         f"""  - id: {issue_id}
-    title: "{title}"
+    title: {yaml_scalar(title)}
     severity: {severity}
     status: open
-    created_at: "{now_text()}"
-    description: "{description}"
+    created_at: {yaml_scalar(now_text())}
+    description: {yaml_scalar(description)}
 """,
     )
     append_text(
@@ -416,6 +416,10 @@ def add_uat_issue(
     )
     update_state(feature, current_step=f"记录 UAT issue {issue_id}")
     return UatIssue(issue_id=issue_id, title=title)
+
+
+def yaml_scalar(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
 
 
 def registry_gates(feature: Path) -> list[dict[str, str | list[str]]]:

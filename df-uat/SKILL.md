@@ -60,7 +60,7 @@ metadata:
 - 不得为了压缩而删除正式记录；只能迁移到 feature-local `evidence/` 或等价正式证据目录。
 - 新增或重开 issue 时，只在活跃 `issues.yaml` 写当前失败面和最新证据；旧轮次细节继续追加到历史文件或专门 evidence 文件。
 - 登记新 issue 前，如果活跃 `issues.yaml` 超过 80 行，或单个 issue 的历史超过 50 行，必须先做分层压缩再继续登记；这是硬阻断，不是建议。
-- 分层压缩优先使用 helper：`uv run python /Users/yinghai/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`。
+- 分层压缩优先使用 helper：`uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`。
 - 分层后必须校验 YAML 可解析，并确认下一个 UAT id 不会与活跃或历史 id 冲突。
 
 ## 非当前 UAT 项反馈

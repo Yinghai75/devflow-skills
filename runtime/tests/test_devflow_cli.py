@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -142,6 +143,15 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertEqual("UAT-001", issue.issue_id)
         self.assertIn("按钮无响应", issues)
         self.assertIn("点击保存后没有提示", uat)
+
+    def test_add_uat_issue_escapes_yaml_sensitive_text(self):
+        feature = create_feature(self.repo, "UAT 转义", "standard", "闭环 UAT", [], [])
+
+        add_uat_issue(feature, '按钮"保存"无响应', "第一行\n第二行: 带冒号", severity="high")
+
+        fields = self.issue_fields(feature / "issues.yaml")
+        self.assertEqual('按钮"保存"无响应', json.loads(fields["title"]))
+        self.assertEqual("第一行\n第二行: 带冒号", json.loads(fields["description"]))
 
     def test_add_uat_issue_uses_archived_history_for_next_id(self):
         feature = create_feature(self.repo, "UAT 历史分层", "standard", "闭环 UAT", [], [])
@@ -303,6 +313,38 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertNotIn("step: 54", issues)
         self.assertEqual("UAT-011", issue.issue_id)
 
+    def test_compact_issues_is_idempotent_for_existing_history_ref(self):
+        feature = create_feature(self.repo, "重复压缩", "standard", "闭环 UAT", [], [])
+        (feature / "evidence").mkdir()
+        history = feature / "evidence" / "uat-001-full-history.yaml"
+        history.write_text(
+            """issues:
+  - id: UAT-001
+    title: "旧失败面"
+    status: closed
+    investigation:
+      - step: preserved
+""",
+            encoding="utf-8",
+        )
+        (feature / "issues.yaml").write_text(
+            """issues:
+  - id: UAT-001
+    title: "旧失败面"
+    severity: high
+    status: closed
+    history_ref: "evidence/uat-001-full-history.yaml"
+""",
+            encoding="utf-8",
+        )
+
+        result = compact_issues(feature)
+
+        self.assertEqual(0, result.compacted_count)
+        self.assertIsNone(result.history_path)
+        self.assertIn("preserved", history.read_text(encoding="utf-8"))
+        self.assertEqual(1, len(list((feature / "evidence").glob("*.yaml"))))
+
     def test_failed_gate_blocks_accept(self):
         feature = create_feature(self.repo, "失败门禁", "high-risk", "改状态机", [], [])
         recommend_gates(feature, surfaces=["state-machine"])
@@ -373,6 +415,15 @@ class DevFlowCliTest(unittest.TestCase):
             else:
                 output.append(line)
         registry.write_text("\n".join(output) + "\n", encoding="utf-8")
+
+    def issue_fields(self, path: Path) -> dict[str, str]:
+        fields: dict[str, str] = {}
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if line.startswith(("title:", "description:")):
+                key, value = line.split(":", 1)
+                fields[key] = value.strip()
+        return fields
 
 
 if __name__ == "__main__":
