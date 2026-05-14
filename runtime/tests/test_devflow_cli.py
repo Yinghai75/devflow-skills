@@ -220,6 +220,210 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("仍有未关闭 UAT issue", result.messages)
 
+    def test_accept_blocks_unresolved_review_findings(self):
+        feature = create_feature(self.repo, "未处理 review", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: pass
+rounds: []
+findings:
+  - priority: P1
+    file: runtime/devflow_cli.py
+    line: 1
+    summary: "accept 未阻断 review finding"
+    status: open
+waivers: []
+manual_review: []
+tooling_blocked: false
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("review-findings.yaml 存在未处理 P0/P1", result.messages)
+
+    def test_accept_blocks_stale_review_findings_when_review_evidence_exists(self):
+        feature = create_feature(self.repo, "陈旧 review", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        review_dir = feature / "evidence" / "reviews" / "round-01"
+        review_dir.mkdir(parents=True)
+        (review_dir / "round-01.md").write_text("P1: 未处理", encoding="utf-8")
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("review loop 已触发但未完成 pass/waiver/manual_review", result.messages)
+
+    def test_accept_allows_waived_review_findings(self):
+        feature = create_feature(self.repo, "已豁免 review", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        self.write_review_round(feature)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: pass
+rounds: []
+findings:
+  - priority: P1
+    file: runtime/devflow_cli.py
+    line: 1
+    summary: "accept 未阻断 review finding"
+    decision: waived
+waivers:
+  - finding_summary: "accept 未阻断 review finding"
+    summary: "已人工确认不适用"
+manual_review: []
+tooling_blocked: false
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertTrue(result.ok)
+
+    def test_accept_allows_top_level_manual_review_resolution(self):
+        feature = create_feature(self.repo, "人工 review", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: tooling_blocked
+rounds: []
+findings:
+  - priority: P1
+    file: runtime/devflow_cli.py
+    line: 1
+    summary: "accept 未阻断 review finding"
+    status: open
+waivers: []
+manual_review:
+  - finding_summary: "accept 未阻断 review finding"
+    summary: "已人工复核并确认不阻断归档"
+tooling_blocked: true
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertTrue(result.ok)
+
+    def test_accept_does_not_apply_unrelated_waiver_to_open_p1(self):
+        feature = create_feature(self.repo, "无关 waiver", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        self.write_review_round(feature)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: pass
+rounds: []
+findings:
+  - priority: P2
+    summary: "已豁免的 P2"
+    status: open
+  - priority: P1
+    summary: "仍未处理的 P1"
+    status: open
+waivers:
+  - finding_summary: "已豁免的 P2"
+    summary: "P2 不阻断"
+manual_review: []
+tooling_blocked: false
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("review-findings.yaml 存在未处理 P0/P1", result.messages)
+
+    def test_accept_does_not_apply_source_path_waiver_to_all_findings(self):
+        feature = create_feature(self.repo, "source path waiver", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        self.write_review_round(feature)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: pass
+rounds: []
+findings:
+  - priority: P1
+    source_path: evidence/reviews/round-01/round-01.md
+    summary: "已豁免的 P1"
+    status: open
+  - priority: P1
+    source_path: evidence/reviews/round-01/round-01.md
+    summary: "仍未处理的 P1"
+    status: open
+waivers:
+  - source_path: evidence/reviews/round-01/round-01.md
+    finding_summary: "已豁免的 P1"
+    summary: "只豁免第一条"
+manual_review: []
+tooling_blocked: false
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("review-findings.yaml 存在未处理 P0/P1", result.messages)
+
+    def test_accept_blocks_pass_review_status_without_round_evidence(self):
+        feature = create_feature(self.repo, "缺 review 证据", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: pass
+rounds: []
+findings: []
+waivers: []
+manual_review: []
+tooling_blocked: false
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("review loop pass 缺少 evidence/reviews 轮次证据", result.messages)
+
+    def test_accept_blocks_pass_review_status_with_only_empty_round_dir(self):
+        feature = create_feature(self.repo, "空 review 目录", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        (feature / "evidence" / "reviews" / "round-01").mkdir(parents=True)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: pass
+rounds: []
+findings: []
+waivers: []
+manual_review: []
+tooling_blocked: false
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("review loop pass 缺少 evidence/reviews 轮次证据", result.messages)
+
+    def test_accept_blocks_tooling_blocked_review_loop(self):
+        feature = create_feature(self.repo, "review 工具阻断", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: tooling_blocked
+rounds: []
+findings: []
+waivers: []
+manual_review: []
+tooling_blocked: true
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("review loop 未通过或工具阻断", result.messages)
+
     def test_accept_does_not_treat_description_status_as_open_issue(self):
         feature = create_feature(self.repo, "描述包含 status", "standard", "修复 UAT", [], [])
         self.complete_default_checklist(feature)
@@ -456,6 +660,11 @@ class DevFlowCliTest(unittest.TestCase):
             else:
                 output.append(line)
         registry.write_text("\n".join(output) + "\n", encoding="utf-8")
+
+    def write_review_round(self, feature: Path) -> None:
+        review_dir = feature / "evidence" / "reviews" / "round-01"
+        review_dir.mkdir(parents=True)
+        (review_dir / "round-01.md").write_text("review pass", encoding="utf-8")
 
     def issue_fields(self, path: Path) -> dict[str, str]:
         fields: dict[str, str] = {}

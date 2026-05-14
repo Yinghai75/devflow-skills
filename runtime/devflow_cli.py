@@ -653,6 +653,149 @@ def validation_is_initial_template(feature: Path, lane: str) -> bool:
     return current == expected or current.count("待补充") >= 5
 
 
+def review_loop_blockers(feature: Path) -> list[str]:
+    review_path = feature / "review-findings.yaml"
+    reviews_dir = feature / "evidence" / "reviews"
+    has_review_rounds = has_review_outputs(reviews_dir)
+    if not review_path.exists():
+        if has_review_rounds:
+            return ["已触发 review loop 但缺少 review-findings.yaml"]
+        return []
+
+    content = review_path.read_text(encoding="utf-8")
+    status = ""
+    for raw in content.splitlines():
+        line = raw.strip()
+        if line.startswith("review_loop_status:"):
+            status = line.split(":", 1)[1].strip().strip('"').strip("'")
+            break
+
+    blockers: list[str] = []
+    resolution_records = parse_yaml_list_section(content, "waivers") + parse_yaml_list_section(content, "manual_review")
+    has_resolution_record = bool(resolution_records)
+    if status in {"pass", "passed"} and not has_review_rounds:
+        blockers.append("review loop pass 缺少 evidence/reviews 轮次证据")
+    if has_review_rounds and status not in {"pass", "passed"} and not has_resolution_record:
+        blockers.append("review loop 已触发但未完成 pass/waiver/manual_review")
+    if status in {"tooling_blocked", "failed", "blocked"} and not has_resolution_record:
+        blockers.append("review loop 未通过或工具阻断")
+
+    resolved_values = {
+        "fixed",
+        "resolved",
+        "waived",
+        "false_positive",
+        "manual_review",
+        "closed",
+        "done",
+    }
+    current: dict[str, str] | None = None
+    in_findings = False
+    for raw in content.splitlines():
+        stripped = raw.strip()
+        if stripped.startswith("findings:"):
+            in_findings = True
+            continue
+        if in_findings and stripped and not raw.startswith(" ") and not raw.startswith("-"):
+            break
+        if not in_findings:
+            continue
+        if stripped.startswith("- "):
+            if current and is_blocking_review_finding(current, resolved_values, resolution_records):
+                blockers.append("review-findings.yaml 存在未处理 P0/P1")
+            current = {}
+            stripped = stripped[2:].strip()
+        if current is not None and ":" in stripped:
+            key, value = stripped.split(":", 1)
+            current[key.strip()] = value.strip().strip('"').strip("'")
+    if current and is_blocking_review_finding(current, resolved_values, resolution_records):
+        blockers.append("review-findings.yaml 存在未处理 P0/P1")
+
+    return list(dict.fromkeys(blockers))
+
+
+def has_review_outputs(reviews_dir: Path) -> bool:
+    if not reviews_dir.exists():
+        return False
+    return any(path.is_file() and path.stat().st_size > 0 for path in reviews_dir.rglob("*"))
+
+
+def section_has_items(content: str, section: str) -> bool:
+    in_section = False
+    for raw in content.splitlines():
+        stripped = raw.strip()
+        if stripped.startswith(f"{section}:"):
+            in_section = True
+            if stripped != f"{section}:" and stripped != f"{section}: []":
+                return True
+            continue
+        if in_section and stripped and not raw.startswith(" "):
+            return False
+        if in_section and stripped.startswith("- "):
+            return True
+    return False
+
+
+def parse_yaml_list_section(content: str, section: str) -> list[dict[str, str]]:
+    records: list[dict[str, str]] = []
+    current: dict[str, str] | None = None
+    in_section = False
+    for raw in content.splitlines():
+        stripped = raw.strip()
+        if stripped.startswith(f"{section}:"):
+            in_section = True
+            continue
+        if in_section and stripped and not raw.startswith(" ") and not raw.startswith("-"):
+            break
+        if not in_section:
+            continue
+        if stripped.startswith("- "):
+            if current:
+                records.append(current)
+            current = {}
+            stripped = stripped[2:].strip()
+        if current is not None and ":" in stripped:
+            key, value = stripped.split(":", 1)
+            current[key.strip()] = value.strip().strip('"').strip("'")
+    if current:
+        records.append(current)
+    return records
+
+
+def is_blocking_review_finding(
+    finding: dict[str, str],
+    resolved_values: set[str],
+    resolution_records: list[dict[str, str]],
+) -> bool:
+    priority = finding.get("priority", "").upper()
+    if priority not in {"P0", "P1"}:
+        return False
+    if review_resolution_matches(finding, resolution_records):
+        return False
+    status = finding.get("status", "").lower()
+    decision = finding.get("decision", "").lower()
+    resolution = finding.get("resolution", "").lower()
+    return not ({status, decision, resolution} & resolved_values)
+
+
+def review_resolution_matches(finding: dict[str, str], records: list[dict[str, str]]) -> bool:
+    finding_id = finding.get("id") or finding.get("fingerprint")
+    summary = finding.get("summary")
+    file = finding.get("file")
+    line = finding.get("line")
+    for record in records:
+        record_id = record.get("finding_id") or record.get("id") or record.get("fingerprint")
+        if finding_id and record_id == finding_id:
+            return True
+        if summary and record.get("finding_summary") == summary:
+            return True
+        if summary and record.get("summary") == summary:
+            return True
+        if file and line and record.get("file") == file and record.get("line") == line:
+            return True
+    return False
+
+
 def accept_feature(feature: Path | str) -> AcceptResult:
     feature = Path(feature)
     state = parse_state(feature)
@@ -666,6 +809,7 @@ def accept_feature(feature: Path | str) -> AcceptResult:
     records = evidence_records(feature)
     passed_gates = {str(record.get("gate_id")) for record in records if record.get("status") == "passed"}
     failed_gates = [str(record.get("gate_id")) for record in records if record.get("status") == "failed"]
+    review_blockers = review_loop_blockers(feature)
     if checklist_incomplete(feature):
         messages.append("checklist 仍有未完成项")
     if has_open_issues(feature):
@@ -681,6 +825,7 @@ def accept_feature(feature: Path | str) -> AcceptResult:
     missing_gate_evidence = [gate for gate in effective if gate not in passed_gates]
     if missing_gate_evidence and records:
         messages.append("关键门禁缺少通过证据")
+    messages.extend(review_blockers)
     if lane == "standard" and not effective and validation_is_initial_template(feature, lane):
         warnings.append("validation.md 仍是初始模板")
     if messages:
