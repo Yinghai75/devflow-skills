@@ -6,12 +6,12 @@
 
 **English** · [中文](./README.md)
 
-**A lightweight AI coding workflow for individual developers: 10 skills, about 930 instruction lines, covering planning, execution, UAT, fixes, archival, and recovery**
+**A lightweight AI coding workflow for individual developers: 10 skills, about 940 instruction lines, covering planning, execution, UAT, fixes, archival, and recovery**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
   <img src="https://img.shields.io/badge/skills-10-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/instructions-~930-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/instructions-~940-10B981?style=flat-square" alt="Instructions"/>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
@@ -33,7 +33,7 @@ Rough comparison from current public repositories:
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 skills | 1 agent file | about 3,200 lines |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 workflows | 33 agent files | about 47,600 lines |
-| **DevFlow** | **10 skills** | **5 lightweight sub-agent roles** | **about 930 lines** |
+| **DevFlow** | **10 skills** | **5 lightweight sub-agent roles** | **about 940 lines** |
 
 Core tradeoffs:
 
@@ -117,6 +117,18 @@ Risk lanes are classified by `df-plan`:
 - **fast**: low-risk docs, small fixes, pure display, or local logic.
 - **standard**: normal multi-file development through plan, execute, UAT, fix, and accept.
 - **high-risk**: state machines, production releases, data writes, cross-module orchestration, real browser paths, or external sites. Requires RED evidence, blast-radius gates, and release checks.
+
+### Verification Layers
+
+DevFlow separates verification into three distinct concepts, avoiding ambiguity between verify / validate / review:
+
+| Concept | Meaning | Stage | Output |
+|---------|---------|-------|--------|
+| **validation** (machine verification) | tests, builds, gate scripts, runtime probes | df-execute, df-fix | `evidence/manifest.json` |
+| **UAT** (manual acceptance) | real paths, real environments, manual operations and observations | df-uat | `uat.md` records |
+| **accept audit** (archival audit) | evidence completeness, coverage, stale gates | df-accept | `acceptance.md` |
+
+There is no standalone "verify" stage. `verifier` is a sub-agent role name in df-execute and df-fix, responsible for running validation gates and reviewing diffs.
 
 `df-plan` is also the pre-plan discovery entry point, covering new project bootstrap, brownfield work, greenfield work inside an existing repo, and architecture adjustment. When boundaries are unclear, clarify users/roles, product shape, tech stack, architecture boundaries, contracts, and the first vertical slice before writing the formal plan. `df-plan` does not run tech-stack scaffolding; those tasks belong in `$df-execute`.
 

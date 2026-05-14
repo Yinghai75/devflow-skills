@@ -98,6 +98,7 @@ metadata:
 11b. git checkpoint 后，检查本轮修改路径是否命中 `codebase_map/OVERVIEW.md` 卡片索引中的模块；命中则增量刷新对应模块卡片。
 11c. 本轮改动涉及模块接口、状态归属或职责边界时，同步更新 `docs/design/system_framework_truth.md` 或对应 module_map。
 11d. 修复改变了业务行为时，更新 `devflow/shared/golden_sets/` 中受影响的样本。
+11e. 关闭 issue 前评估：本 issue 揭示的失败模式是否可被机器检测（自动测试、contract gate、golden sample、lint 规则）。可前移时，在 `issues.yaml` 的 `regression_guard_contract` 字段记录新增的 gate 类型和路径引用，优先新增 gate 而非依赖人工 UAT 防回归；不可前移时写明原因（如只能在真实环境暴露）。
 12. 最终回复必须先用人话给状态结论，再列证据。第一段固定回答：本地发布是否完成、远端发布是否完成、现在能否直接 UAT、还缺什么；禁止先堆命令、hash、测试清单或 DevFlow 术语。随后再写 UAT 状态（`可以 UAT` / `暂不建议 UAT` / `只完成代码验证`），紧跟对象限定（业务故障 / 门禁 / 运行态 / 文档）。可以 UAT 时写 1-3 条用户具体操作和期望结果。只要不是“可以 UAT”，必须紧跟一个“要到可以 UAT 还差什么”清单，逐条写明：
    - `谁执行`：agent 继续执行、用户手动操作，或需要用户授权/登录。
    - `做什么`：具体命令、页面动作、样本输入、发布/重载/刷新步骤。

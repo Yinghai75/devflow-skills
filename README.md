@@ -6,12 +6,12 @@
 
 [English](./README.en.md) · **中文**
 
-**个人开发者的轻量 AI 编码工作流：10 个 skills，约 930 行指令，覆盖 feature 计划、执行、UAT、修复、归档与恢复**
+**个人开发者的轻量 AI 编码工作流：10 个 skills，约 940 行指令，覆盖 feature 计划、执行、UAT、修复、归档与恢复**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
   <img src="https://img.shields.io/badge/skills-10-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/instructions-~930-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/instructions-~940-10B981?style=flat-square" alt="Instructions"/>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
@@ -33,7 +33,7 @@ DevFlow 解决的是一个很窄的问题：
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 个 skills | 1 个 agent 文件 | 约 3,200 行 |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 个 workflows | 33 个 agent 文件 | 约 47,600 行 |
-| **DevFlow** | **10 个 skills** | **5 类精简子代理角色** | **约 930 行** |
+| **DevFlow** | **10 个 skills** | **5 类精简子代理角色** | **约 940 行** |
 
 核心取舍：
 
@@ -117,6 +117,18 @@ df-constraint-audit：任意阶段只读审计约束漂移
 - **fast**：低风险文档、小修复、纯展示或局部逻辑。
 - **standard**：常规多文件开发，按 plan → execute → UAT → fix → accept 推进。
 - **high-risk**：状态机、线上发布、数据写入、跨模块编排、真实浏览器或外部站点路径；要求 RED 证据、防炸门禁和发布闭环。
+
+### 验证层次
+
+DevFlow 把验证分为三个不同概念，避免 verify / validate / review 等术语混淆：
+
+| 概念 | 含义 | 执行阶段 | 产物 |
+|------|------|----------|------|
+| **validation**（机器验证） | 测试、构建、门禁脚本、runtime probe | df-execute、df-fix | `evidence/manifest.json` |
+| **UAT**（人工验收） | 真实路径、真实环境、人工操作和观察 | df-uat | `uat.md` 记录 |
+| **accept audit**（归档审计） | 证据完整性、覆盖率、stale gate | df-accept | `acceptance.md` |
+
+没有独立的"verify"阶段。`verifier` 是 df-execute 和 df-fix 中的子代理角色名，负责执行 validation 中的门禁和 diff 审查。
 
 `df-plan` 也是 pre-plan discovery 入口，覆盖 new project bootstrap、brownfield、仓内 greenfield 和 architecture adjustment 回流。边界不清时先澄清用户/角色、产品形态、技术栈、架构边界、合同和首个垂直切片；清楚后才写正式计划。`df-plan` 不执行技术栈脚手架，脚手架任务交给 `$df-execute`。
 

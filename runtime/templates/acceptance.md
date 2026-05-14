@@ -14,6 +14,7 @@
 - [ ] codebase map 已检查；过期模块卡片已刷新或明确豁免
 - [ ] truth doc 已检查；涉及边界变更时已同步更新或明确豁免
 - [ ] golden set 已检查；涉及行为变更时样本已更新或明确豁免
+- [ ] execute validation gap 已回顾；首测发现 3 个或更多 issue 时已记录改进建议
 
 ## Stale Gate
 
@@ -23,4 +24,5 @@
 - truth_doc_refreshed: []
 - golden_set_checked: false
 - golden_set_refreshed: []
+- execute_validation_gap: 不适用
 - waiver: 无

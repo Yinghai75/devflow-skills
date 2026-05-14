@@ -26,6 +26,7 @@ metadata:
 13. 本 feature 涉及模块接口、状态归属或职责边界变更时，检查 `system_framework_truth.md` 和对应 module_map 是否已被 execute/fix 同步更新；未更新则更新或写 waiver。
 14. 本 feature 涉及行为变更时，检查 `devflow/shared/golden_sets/` 中受影响的样本是否已更新；golden 门禁是否已跑且样本与当前代码一致。
 15. `acceptance.md` 必须记录 `codebase_map_checked`、`truth_doc_checked`、`golden_set_checked` 及各自的 refreshed/waiver 状态。未完成不得归档。
+16. 若本 feature 的 `first_pass` UAT 发现 3 个或更多 issue，在 `acceptance.md` 记录 `execute_validation_gap`：回顾哪些失败本可在 execute 阶段通过更强 gate、RED 测试或 golden sample 发现，并把改进建议写入 roadmap、backlog 或后续 feature 的 `validation.md` 参考。该项是回顾性检查，不单独阻断归档。
 
 ## 脚本门禁
 
