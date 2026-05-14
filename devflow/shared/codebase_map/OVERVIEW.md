@@ -2,7 +2,7 @@
 
 ## Atlas
 
-- `df-*/SKILL.md`：10 个 DevFlow skill 入口，要求单 skill 自包含。
+- `df-*/SKILL.md`：11 个 DevFlow skill 入口，要求单 skill 自包含。
 - `README.md` / `README.en.md`：公开安装、机制总览和技能表。
 - `df-regression/scripts/regression_feature.py`：已归档 feature 回归 helper。
 - `/Users/yinghai/.codex/local/devflow/`：当前本机 runtime helper、templates、tests；尚未纳入公开仓库。
@@ -12,6 +12,7 @@
 - `modules/skill-entrypoints.md`：skill 指令合同、跨 skill 约束和 README 同步。
 - `modules/runtime-helper.md`：本机 DevFlow CLI、模板和测试。
 - `modules/docs-and-release.md`：公开安装说明、发布口径和敏感信息边界。
+- `df-review-loop/SKILL.md`：Codex review 自动循环，供 df-execute/df-fix 调用。
 
 ## 当前风险
 

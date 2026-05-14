@@ -5,6 +5,7 @@
 - `df-plan/SKILL.md`
 - `df-uat/SKILL.md`
 - `df-execute/SKILL.md`
+- `df-review-loop/SKILL.md`
 - `df-fix/SKILL.md`
 - `df-accept/SKILL.md`
 - `df-backlog/SKILL.md`
@@ -17,7 +18,7 @@
 
 - 每个 `SKILL.md` 必须自包含，不能依赖未发布的隐性上下文。
 - 改 skill 后同步 `README.md` 与 `README.en.md`。
-- 技能规则写短规则，不写长解释。
+- 技能规则写短规则，不写长解释；跨 skill 复用逻辑优先独立成 skill，而不是在多个入口重复弱规则。
 - 不能把项目级 Dify、FZNAS、浏览器细节写进全局 skills。
 
 ## 惯例与测试

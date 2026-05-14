@@ -6,12 +6,12 @@
 
 [English](./README.en.md) · **中文**
 
-**个人开发者的轻量 AI 编码工作流：10 个 skills，约 940 行指令，覆盖 feature 计划、执行、UAT、修复、归档与恢复**
+**个人开发者的轻量 AI 编码工作流：11 个 skills，约 1,050 行指令，覆盖 feature 计划、执行、AI review、UAT、修复、归档与恢复**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
-  <img src="https://img.shields.io/badge/skills-10-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/instructions-~940-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/skills-11-6366F1?style=flat-square" alt="Skills"/>
+  <img src="https://img.shields.io/badge/instructions-~1050-10B981?style=flat-square" alt="Instructions"/>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
@@ -33,7 +33,7 @@ DevFlow 解决的是一个很窄的问题：
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 个 skills | 1 个 agent 文件 | 约 3,200 行 |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 个 workflows | 33 个 agent 文件 | 约 47,600 行 |
-| **DevFlow** | **10 个 skills** | **5 类精简子代理角色** | **约 940 行** |
+| **DevFlow** | **11 个 skills** | **5 类精简子代理角色** | **约 1,050 行** |
 
 核心取舍：
 
@@ -87,6 +87,7 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 /df-codebase-map # 维护代码地图：OVERVIEW + 命中模块卡片，节省上下文
 /df-constraint-audit # 查约束漂移：审计门禁、状态语义、接口契约是否重复或矛盾
 /df-execute     # 显式授权后执行 checklist，更新状态、证据和提交
+/df-review-loop # 自动 Codex review 循环：审查 diff、修阻断项、复审和止损
 /df-status -r   # 新会话恢复：读取当前 feature、计划和断点
 /df-uat         # 人工验收：引导真实路径 UAT，完整登记本轮反馈
 /df-fix         # 修复 UAT issue：分流、RED、修复、验证、关闭 issue
@@ -125,10 +126,11 @@ DevFlow 把验证分为三个不同概念，避免 verify / validate / review �
 | 概念 | 含义 | 执行阶段 | 产物 |
 |------|------|----------|------|
 | **validation**（机器验证） | 测试、构建、门禁脚本、runtime probe | df-execute、df-fix | `evidence/manifest.json` |
+| **AI review loop**（代码审查循环） | `codex exec review`、P0/P1/P2 分流、修复复审、waiver 和止损 | df-review-loop、df-execute、df-fix | `evidence/reviews/` |
 | **UAT**（人工验收） | 真实路径、真实环境、人工操作和观察 | df-uat | `uat.md` 记录 |
 | **accept audit**（归档审计） | 证据完整性、覆盖率、stale gate | df-accept | `acceptance.md` |
 
-没有独立的"verify"阶段。`verifier` 是 df-execute 和 df-fix 中的子代理角色名，负责执行 validation 中的门禁和 diff 审查。
+没有独立的"verify"阶段。`verifier` 是 df-execute 和 df-fix 中的子代理角色名，负责执行 validation 门禁、复核 review 证据和运行态证据；AI diff 审查由 `df-review-loop` 统一处理。
 
 `df-plan` 也是 pre-plan discovery 入口，覆盖 new project bootstrap、brownfield、仓内 greenfield 和 architecture adjustment 回流。边界不清时先澄清用户/角色、产品形态、技术栈、架构边界、合同和首个垂直切片；清楚后才写正式计划。`df-plan` 不执行技术栈脚手架，脚手架任务交给 `$df-execute`。
 
@@ -206,7 +208,7 @@ DevFlow 把验证分为三个不同概念，避免 verify / validate / review �
 
 - 搜索、定位、比较：`explorer`。
 - 实现代码：`executor`，未注册时回退 `worker`。
-- 跑门禁和审查 diff：`verifier`。
+- 跑门禁、复核 review 证据和运行态证据：`verifier`。
 - 计划缺口：`planner` 或回到 `df-plan`。
 
 `df-fix` 更保守：主代理保留 issue 判定、车道分流、`q1/q2/q3`、止损、关闭 issue 和最终状态；子代理只做边界清楚的定位、窄补丁和验证。同一用户可见失败面的核心修复不得并发多个 executor。
@@ -224,6 +226,7 @@ DevFlow 把验证分为三个不同概念，避免 verify / validate / review �
 | `df-codebase-map` | 维护分层代码地图：OVERVIEW + 命中模块卡片。 | `devflow/shared/codebase_map/` |
 | `df-constraint-audit` | 只读审计门禁描述、状态语义和接口契约是否与事实源漂移。 | 约束问题清单、建议唯一事实源 |
 | `df-execute` | 显式授权后按 checklist 执行，先跑 targeted test，再提交和更新证据。 | 代码改动、提交、`evidence/manifest.json`、`handoff.md` |
+| `df-review-loop` | 用 `codex exec review` 自动审查 diff，按 P0/P1/P2 修复、复审、waiver 或止损。 | `evidence/reviews/`、`review-findings.yaml` 或 `handoff.md` |
 | `df-status` | 保存断点，或在新会话恢复当前 feature。 | `handoff.md`、恢复上下文 |
 | `df-uat` | 引导人工 UAT，完整登记本轮反馈和 UAT issue。 | `uat.md`、`issues.yaml` |
 | `df-fix` | 修复 active feature 的 UAT issue，完成 RED、修复、验证、关闭和回归记录。 | 修复提交、issue 关闭记录、验证证据 |

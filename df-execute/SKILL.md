@@ -35,7 +35,7 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
    - 更新 `checklist.yaml` 状态。
    - 更新 `state.yaml` 的 `current_step`；高风险 RED 证据可写入 `red_evidence`。
    - 更新 `handoff.md`。
-   - 若该项形成可独立机器验证（validation）的代码/文档改动，先跑受影响路径的 targeted test（单测/构建/lint），通过后再检查 `git status --short`，只暂存相关文件并做一个小提交；不得混入无关改动或用户明确保留的不提交文件。
+   - 若该项形成可独立机器验证（validation）的代码/文档改动，先跑受影响路径的 targeted test（单测/构建/lint），通过后调用 `$df-review-loop --uncommitted` 做提交前 AI review；review PASS 或阻断项已有明确 waiver 后，再检查 `git status --short`，只暂存相关文件并做一个小提交；不得混入无关改动或用户明确保留的不提交文件。
    - 若机器验证（validation）失败但已改代码，先 `git stash push -m "df-execute-wip-<item-id>-<时间戳>"` 保存现场并把 hash 写入 `handoff.md`，再继续修复或回退。
    - 改了门禁脚本、状态码语义或接口契约后，检查 checklist/validation/handoff/issues 是否仍有重复描述；未清理前不得标记该项完成。
    - 禁止连续两个 checklist 项之间没有任何 git checkpoint。
@@ -81,7 +81,7 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 - 搜索/定位/比较 → spawn `explorer`。
 - 实现代码（> 2 文件或 > 30 行）→ spawn `executor`（回退 `worker`）。
 - 多个 checklist 项写入边界不重叠 → 并行 spawn 多个 `executor`。
-- 跑门禁/审查 diff → spawn `verifier`。
+- 跑门禁、复核 `$df-review-loop` 证据 → spawn `verifier`。
 - 发现计划缺口 → spawn `planner` 或回到 `$df-plan`。
 
 ### 角色
@@ -90,7 +90,7 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 |------|------|---------|
 | `explorer` | 只读搜索、定位、比较 | 无 |
 | `executor` / `worker` | 边界清楚的实现或窄补丁 | 任务指定路径 |
-| `verifier` | 门禁、diff 审查、运行态复核 | evidence 目录 |
+| `verifier` | 门禁、review 证据复核、运行态复核 | evidence 目录 |
 | `planner` | 补计划或架构回流草案 | feature 计划文件 |
 
 ### 编排
@@ -98,8 +98,8 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 1. 读取 pending checklist 项，估计文件数和改动量。
 2. 写入边界不重叠的项 → 并行 spawn，统一收集。
 3. 需要探索 → 先 `explorer`，再 `executor`。
-4. executor 返回后，用 `/review` 审查 diff；未通过不得提交。
-5. `/review` 发现问题 → 回退到 `executor` 修复，不由主模型自己修。
+4. executor 返回后调用 `$df-review-loop --uncommitted`；未通过且无 waiver 不得提交。
+5. `$df-review-loop` 发现阻断 finding → 回退到 `executor` 修复，不由主模型自己修；review loop 触发止损则暂停并按 `review_loop_breaker` 回 `$df-plan` 或 integration-debug。
 6. 主模型整合结果、更新 DevFlow 产物、处理 git。
 7. spawn `verifier` 跑对应门禁。
 8. 循环直到全部完成或止损。

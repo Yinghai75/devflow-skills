@@ -71,7 +71,7 @@ metadata:
 - `scoped-fix` 中根因明确且实现代码 > 2 文件或 > 30 行 → spawn `executor`（回退 `worker`）。
 - `high-risk-fix` 未写 `lane_downgrade_reason` 或 `narrow_patch_reason` 前，只能 spawn `explorer` / `verifier`，不得 spawn 写业务代码的子代理。
 - `integration-debug` 只能 spawn 只读 `explorer`；如需写入，仅允许 `executor` 添加探针，不得改业务逻辑。
-- 跑门禁、审查 diff、复核运行态 gate → spawn `verifier`。
+- 跑门禁、复核 `$df-review-loop` 证据、复核运行态 gate → spawn `verifier`。
 - 触发止损、影响面超过当前 plan、或需要重设计 → 回 `$df-plan`；必要时 spawn `planner`，不得继续派 executor 补丁。
 
 ### 并发
@@ -90,9 +90,9 @@ metadata:
 5. 先定 RED：纯逻辑可用单测；UAT/runtime/跨模块必须用真实复现、HTTP 探测、容器检查、页面操作或契约 gate 击中失败面；mock 单测只能补防回归。
 6. 跨运行中组件的 issue，改代码前确认源码口径和运行态口径是否一致；无法确认时先把漂移风险写入证据表。
 7. 改代码前确认诊断字段 + `fix_lane` 已落盘且与本轮 RED 一致；根因明确且未命中止损则修复，根因不清先调查并记录假设、证据和最小复现。
-8. 修复后先复跑触发 issue 的同一真实步骤；跨组件链路还必须复跑不可替代 runtime gate，再按回归面清单跑最小自动测试、构建和对应门禁。
+8. 修复后先复跑触发 issue 的同一真实步骤；跨组件链路还必须复跑不可替代 runtime gate，再按回归面清单跑最小自动测试、构建和对应门禁；代码改动关闭 issue 前必须调用 `$df-review-loop --uncommitted` 审查本轮修复 diff。
 8b. 跨组件 issue 验证结论必须标注每个环节是运行态已验证还是仅代码已改；只有代码证据时不得写“已修复”，只能写“代码已改，运行态未验证”。凡是用户可见回归（q2 契约中列出的）在最终载体中出现，直接判 RED。
-9. 提交前确认已通过 UAT 的代码不受影响；有专用门禁时必须引用其 pass/fail 结果。
+9. 提交前确认已通过 UAT 的代码不受影响；有专用门禁时必须引用其 pass/fail 结果；`$df-review-loop` 的 P0/P1 未处理或无 waiver 时不得关闭 issue。
 10. 更新 `issues.yaml`、`uat.md`、`state.yaml`、`handoff.md`，证据区分真实复现/运行态验证、自动测试/门禁、回归面覆盖、验证画像是否一致；不得把未覆盖的面写成已通过。若结论不是“可以 UAT”，必须在记录中补 `uat_unlock_next_steps` 或等价段落，写清进入 UAT 还差的最小动作、执行主体、样本/命令/页面、通过标准和阻断原因；禁止只写“不建议 UAT”“运行态未验证”“待复测”这类不可执行结论。
 11. **每轮修复尝试后必须 git checkpoint**，不等 issue 关闭：通过则原子提交 `fix(<issue-id>): <一句话描述>`；未通过但已改代码则 stash/WIP commit 并把 hash 写入 `handoff.md`；止损触发则立即 checkpoint；提交前只暂存该 issue 相关文件；禁止连续两轮修复之间没有任何 checkpoint。
 11b. git checkpoint 后，检查本轮修改路径是否命中 `codebase_map/OVERVIEW.md` 卡片索引中的模块；命中则增量刷新对应模块卡片。

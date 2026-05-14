@@ -6,12 +6,12 @@
 
 **English** · [中文](./README.md)
 
-**A lightweight AI coding workflow for individual developers: 10 skills, about 940 instruction lines, covering planning, execution, UAT, fixes, archival, and recovery**
+**A lightweight AI coding workflow for individual developers: 11 skills, about 1,050 instruction lines, covering planning, execution, AI review, UAT, fixes, archival, and recovery**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
-  <img src="https://img.shields.io/badge/skills-10-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/instructions-~940-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/skills-11-6366F1?style=flat-square" alt="Skills"/>
+  <img src="https://img.shields.io/badge/instructions-~1050-10B981?style=flat-square" alt="Instructions"/>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
@@ -33,7 +33,7 @@ Rough comparison from current public repositories:
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 skills | 1 agent file | about 3,200 lines |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 workflows | 33 agent files | about 47,600 lines |
-| **DevFlow** | **10 skills** | **5 lightweight sub-agent roles** | **about 940 lines** |
+| **DevFlow** | **11 skills** | **5 lightweight sub-agent roles** | **about 1,050 lines** |
 
 Core tradeoffs:
 
@@ -87,6 +87,7 @@ For other agents, copy the `df-*` directories into that agent's skills directory
 /df-codebase-map # Code map: maintain OVERVIEW + matching module cards to save context
 /df-constraint-audit # Constraint audit: find duplicated or conflicting gates, status semantics, and contracts
 /df-execute     # Execute the checklist after explicit authorization
+/df-review-loop # Automated Codex review loop: review diffs, fix blockers, re-review, and stop-loss
 /df-status -r   # New session: restore the current feature and handoff
 /df-uat         # Manual UAT: guide real-path testing and capture the full feedback round
 /df-fix         # Fix UAT issues: triage, RED, patch, validate, close
@@ -125,10 +126,11 @@ DevFlow separates verification into three distinct concepts, avoiding ambiguity 
 | Concept | Meaning | Stage | Output |
 |---------|---------|-------|--------|
 | **validation** (machine verification) | tests, builds, gate scripts, runtime probes | df-execute, df-fix | `evidence/manifest.json` |
+| **AI review loop** | `codex exec review`, P0/P1/P2 triage, fix/re-review, waivers, and stop-loss | df-review-loop, df-execute, df-fix | `evidence/reviews/` |
 | **UAT** (manual acceptance) | real paths, real environments, manual operations and observations | df-uat | `uat.md` records |
 | **accept audit** (archival audit) | evidence completeness, coverage, stale gates | df-accept | `acceptance.md` |
 
-There is no standalone "verify" stage. `verifier` is a sub-agent role name in df-execute and df-fix, responsible for running validation gates and reviewing diffs.
+There is no standalone "verify" stage. `verifier` is a sub-agent role name in df-execute and df-fix, responsible for running validation gates and checking review/runtime evidence. AI diff review is handled by `df-review-loop`.
 
 `df-plan` is also the pre-plan discovery entry point, covering new project bootstrap, brownfield work, greenfield work inside an existing repo, and architecture adjustment. When boundaries are unclear, clarify users/roles, product shape, tech stack, architecture boundaries, contracts, and the first vertical slice before writing the formal plan. `df-plan` does not run tech-stack scaffolding; those tasks belong in `$df-execute`.
 
@@ -206,7 +208,7 @@ Before code changes, `fix_lane`, `q1_causal_chain`, `q2_regression_list`, and `q
 
 - search, localization, comparison: `explorer`;
 - code implementation: `executor`, falling back to `worker`;
-- gate execution and diff review: `verifier`;
+- gate execution plus review/runtime evidence checks: `verifier`;
 - plan gaps: `planner` or return to `df-plan`.
 
 `df-fix` is more conservative. The main agent owns issue judgment, lane triage, `q1/q2/q3`, stop-loss, issue closure, and final status. Sub-agents only handle bounded localization, narrow patches, and verification. Multiple executors must not work concurrently on the core fix for the same user-visible failure.
@@ -224,6 +226,7 @@ If execution or fixing reveals that module responsibilities, public contracts, s
 | `df-codebase-map` | Maintain the layered code map: OVERVIEW plus matching module cards. | `devflow/shared/codebase_map/` |
 | `df-constraint-audit` | Read-only audit for drift between gate descriptions, status semantics, contracts, and facts. | constraint findings and source-of-truth recommendations |
 | `df-execute` | Execute checklist items after explicit authorization, run targeted tests first, then commit and update evidence. | code changes, commits, `evidence/manifest.json`, `handoff.md` |
+| `df-review-loop` | Use `codex exec review` to review diffs, then fix, re-review, waive, or stop-loss by P0/P1/P2 severity. | `evidence/reviews/`, `review-findings.yaml` or `handoff.md` |
 | `df-status` | Save a handoff or restore the current feature in a new session. | `handoff.md`, restored context |
 | `df-uat` | Guide manual UAT and capture the full feedback round. | `uat.md`, `issues.yaml` |
 | `df-fix` | Fix active feature UAT issues through RED, patch, validation, closure, and regression notes. | fix commits, issue closure records, validation evidence |
