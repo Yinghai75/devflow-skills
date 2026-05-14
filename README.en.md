@@ -86,7 +86,7 @@ For other agents, copy the `df-*` directories into that agent's skills directory
 /df-backlog     # Later item: record a roadmap/backlog item without interrupting current work
 /df-codebase-map # Code map: maintain OVERVIEW + matching module cards to save context
 /df-constraint-audit # Constraint audit: find duplicated or conflicting gates, status semantics, and contracts
-/df-execute     # Execute the checklist after explicit authorization
+/df-execute     # Execute the checklist after explicit authorization and prove goal coverage
 /df-review-loop # Automated Codex review loop: review diffs, fix blockers, re-review, and stop-loss
 /df-status -r   # New session: restore the current feature and handoff
 /df-uat         # Manual UAT: guide real-path testing and capture the full feedback round
@@ -121,16 +121,17 @@ Risk lanes are classified by `df-plan`:
 
 ### Verification Layers
 
-DevFlow separates verification into three distinct concepts, avoiding ambiguity between verify / validate / review:
+DevFlow separates verification into distinct concepts, avoiding ambiguity between verify / validate / review:
 
 | Concept | Meaning | Stage | Output |
 |---------|---------|-------|--------|
 | **validation** (machine verification) | tests, builds, gate scripts, runtime probes | df-execute, df-fix | `evidence/manifest.json` |
-| **AI review loop** | `codex exec review`, P0/P1/P2 triage, fix/re-review, waivers, and stop-loss | df-review-loop, df-execute, df-fix | `evidence/reviews/` |
+| **coverage verification** | goal-backward check that user-visible capabilities have implementation, validation, UAT, or waivers | df-execute | coverage summary in `handoff.md`, coverage findings in `review-findings.yaml` |
+| **AI review loop** | `codex exec review`, P0/P1/P2 triage, fix/re-review, waivers, and stop-loss | df-review-loop, df-execute, df-fix | `evidence/reviews/`, `review-findings.yaml` |
 | **UAT** (manual acceptance) | real paths, real environments, manual operations and observations | df-uat | `uat.md` records |
 | **accept audit** (archival audit) | evidence completeness, coverage, stale gates | df-accept | `acceptance.md` |
 
-There is no standalone "verify" stage. `verifier` is a sub-agent role name in df-execute and df-fix, responsible for running validation gates and checking review/runtime evidence. AI diff review is handled by `df-review-loop`.
+There is no standalone "verify" stage. Coverage verification is a goal-backward check inside `df-execute`, not a new phase. `verifier` is a sub-agent role name in df-execute and df-fix, responsible for running validation gates and checking review/runtime evidence. AI diff review is handled by `df-review-loop`.
 
 `df-plan` is also the pre-plan discovery entry point, covering new project bootstrap, brownfield work, greenfield work inside an existing repo, and architecture adjustment. When boundaries are unclear, clarify users/roles, product shape, tech stack, architecture boundaries, contracts, and the first vertical slice before writing the formal plan. `df-plan` does not run tech-stack scaffolding; those tasks belong in `$df-execute`.
 
@@ -225,13 +226,13 @@ If execution or fixing reveals that module responsibilities, public contracts, s
 | `df-backlog` | Record later work without interrupting the current feature. | updated `devflow/roadmap.md` |
 | `df-codebase-map` | Maintain the layered code map: OVERVIEW plus matching module cards. | `devflow/shared/codebase_map/` |
 | `df-constraint-audit` | Read-only audit for drift between gate descriptions, status semantics, contracts, and facts. | constraint findings and source-of-truth recommendations |
-| `df-execute` | Execute checklist items after explicit authorization, run targeted tests first, then commit and update evidence. | code changes, commits, `evidence/manifest.json`, `handoff.md` |
-| `df-review-loop` | Use `codex exec review` to review diffs, then fix, re-review, waive, or stop-loss by P0/P1/P2 severity. | `evidence/reviews/`, `review-findings.yaml` or `handoff.md` |
+| `df-execute` | Execute checklist items after explicit authorization, run targeted tests first, then commit and update evidence, while proving the feature goal has no missing implementation. | code changes, commits, `evidence/manifest.json`, `handoff.md` |
+| `df-review-loop` | Use `codex exec review` to review diffs, then fix, re-review, waive, or stop-loss by P0/P1/P2 severity; non-Codex environments write `tooling_blocked` instead of claiming PASS. | `evidence/reviews/`, `review-findings.yaml` |
 | `df-status` | Save a handoff or restore the current feature in a new session. | `handoff.md`, restored context |
 | `df-uat` | Guide manual UAT and capture the full feedback round. | `uat.md`, `issues.yaml` |
 | `df-fix` | Fix active feature UAT issues through RED, patch, validation, closure, and regression notes. | fix commits, issue closure records, validation evidence |
 | `df-regression` | Handle post-acceptance regressions or new UAT issues for archived features. | regression issues, evidence, closure records in the archive feature |
-| `df-accept` | Final acceptance and archival, checking checklist, UAT, gates, codebase map, truth docs, and golden sets. | `acceptance.md`, `devflow/archive/` |
+| `df-accept` | Final acceptance and archival, checking checklist, UAT, gates, review evidence, codebase map, truth docs, and golden sets. | `acceptance.md`, `devflow/archive/` |
 
 ---
 
@@ -252,9 +253,11 @@ your-repo/
     │       ├── handoff.md             # cross-session handoff
     │       ├── uat.md                 # UAT matrix and retest notes
     │       ├── issues.yaml            # active UAT issue view
+    │       ├── review-findings.yaml   # AI review findings, waivers, and final status
     │       ├── acceptance.md          # acceptance report
     │       └── evidence/              # machine evidence and history
-    │           └── manifest.json
+    │           ├── manifest.json
+    │           └── reviews/           # df-review-loop round outputs
     ├── archive/                       # archived features
     ├── roadmap.md                     # long-goal backlog
     └── shared/

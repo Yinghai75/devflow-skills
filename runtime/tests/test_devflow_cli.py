@@ -51,6 +51,7 @@ class DevFlowCliTest(unittest.TestCase):
             "validation.md",
             "uat.md",
             "issues.yaml",
+            "review-findings.yaml",
             "handoff.md",
             "acceptance.md",
         }
@@ -76,6 +77,9 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertIn("codebase_map_checked: false", acceptance)
         self.assertIn("truth_doc_checked: false", acceptance)
         self.assertIn("golden_set_checked: false", acceptance)
+        self.assertIn("review_loop_checked: false", acceptance)
+        review_findings = (feature / "review-findings.yaml").read_text(encoding="utf-8")
+        self.assertIn("review_loop_status: not_applicable", review_findings)
 
     def test_ensure_shared_creates_codebase_map_overview(self):
         ensure_shared(self.repo)

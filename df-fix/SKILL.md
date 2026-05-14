@@ -57,7 +57,7 @@ metadata:
 高风险链路必须定义一个不可替代的用户可见 runtime gate；项目或 feature 已定义专用 gate 时必须作为阻断条件执行。gate 不可执行时写明阻断原因和人工替代证据，不得关闭 issue。
 
 ## fast-fix 快速路径
-当 `fix_lane=fast-fix` 时只走 4 步：确认 issue 并写 1 行 `q1_causal_chain`；改代码并跑 targeted test；只暂存相关文件做原子提交；关闭 `issues.yaml` 后回 `$df-uat`。验证失败立即升级 `scoped-fix` 走标准流程，不需要读取全部 plan/validation/handoff 或写运行态证据分级。
+当 `fix_lane=fast-fix` 时只走 4 步：确认 issue 并写 1 行 `q1_causal_chain`；改代码并跑 targeted test；只暂存相关文件做原子提交；关闭 `issues.yaml` 后回 `$df-uat`。fast-fix 不要求 `$df-review-loop`；机器验证（validation）失败立即升级 `scoped-fix` 走标准流程并补跑 review loop，不需要读取全部 plan/validation/handoff 或写运行态证据分级。
 
 ## 子代理使用
 

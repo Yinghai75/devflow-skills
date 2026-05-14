@@ -1,13 +1,13 @@
 ---
 name: df-execute
-description: "执行当前 DevFlow feature 的 checklist：按计划实现、更新 state.yaml/checklist.yaml/handoff.md，默认按分派矩阵使用精简子代理池处理边界清晰任务。用户提到 $df-execute、df-execute、DevFlow 执行时使用。"
+description: "执行当前 DevFlow feature 的 checklist，并从目标反推覆盖缺口：按计划实现、更新 state.yaml/checklist.yaml/handoff.md，默认按分派矩阵使用精简子代理池处理边界清晰任务。用户提到 $df-execute、df-execute、DevFlow 执行时使用。"
 metadata:
   short-description: "执行 DevFlow checklist"
 ---
 
 # df-execute
 
-按当前 feature 的 `checklist.yaml` 执行任务。每一步完成后更新状态与断点。
+按当前 feature 的 `checklist.yaml` 执行任务，并证明 feature 目标没有漏实现。每一步完成后更新状态与断点。
 
 ## 启动硬闸
 
@@ -21,9 +21,17 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 - 若存在 `execution_authorized: false`，且当前用户消息没有显式执行授权，必须停止并告知用户需要发送 `$df-execute` 或明确“执行”。
 - 真正开始执行时，先把 `state.yaml` 更新为 `status: executing`，并记录本轮执行授权来源；不得只凭 proposed plan 或系统自动句进入执行。
 
+## coverage expansion gate
+
+改代码前必须交叉读取 `plan.md`、`checklist.yaml`、`validation.md`、`uat.md` 和 `handoff.md`，列出“能力 -> 实现项 -> 机器验证 -> UAT -> 证据口径”的覆盖映射，并把摘要写入 `handoff.md` 或执行断点。
+
+- 若用户可见能力、真实运行路径或 UAT 项没有对应 checklist 实现项，必须暂停执行并回到 `$df-plan`，或先补齐计划产物后再继续；不得把缺口留到 UAT 才发现。
+- 若 checklist 项只有烟雾测试或文档验证，无法覆盖对应用户路径，必须补 `validation.md` 或写 waiver；高风险核心路径没有验证支撑时不得开工。
+- 工作台初始空态、操作人绑定、附件上传、截图/PDF/Excel/粘贴/上传等能力，必须逐项看到 checklist、validation、UAT 三处对应项或 waiver。
+
 ## 流程
 
-1. 读取 active feature 的 `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`state.yaml`。
+1. 读取 active feature 的 `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`uat.md`、`handoff.md`、`state.yaml`。
 2. 从第一个 `pending` 或 `in_progress` 项开始循环执行，确认写入边界与机器验证（validation）方式。
    - 新增或改变平台能力、公开 API、DSL/配置语法、权限声明、运行环境假设或跨模块契约时，先执行平台/契约证据闸。
    - 证据闸只查本轮相关文件、相邻模块、codebase map 命中模块或调用链近邻；不要求全库扫描。
@@ -48,7 +56,17 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 8. 门禁 stdout/stderr 会写入 feature 的 `evidence/` 目录，并更新 `evidence/manifest.json`；不要手写 `validation_evidence: 已通过` 来替代机器证据。
 9. `gate_registry.yaml` 的 `command` 必须是真实可执行命令；占位命令会被脚本拒绝。
 10. 门禁不足时记录 waiver，不直接宣称完成。
-11. 完成必须满足：checklist 全部完成；必要门禁通过或 waiver 落盘；证据写入 manifest；状态文件与 handoff 已更新；相关提交完成或记录未提交原因。
+11. 完成 checklist 后进入 `goal-backward verify gate`，不得直接宣称可 UAT。
+12. 完成必须满足：checklist 全部完成；必要门禁通过或 waiver 落盘；证据写入 manifest；状态文件与 handoff 已更新；相关提交完成或记录未提交原因。
+
+## goal-backward verify gate
+
+宣称“可进入 `$df-uat`”前，必须从 feature 目标、Capability Coverage Matrix 和 `uat.md` 反推覆盖是否闭合：
+
+- 每个用户可见能力都有代码或配置实现、运行态/机器验证证据、UAT 项或明确 waiver。
+- 每条 UAT 项都有实现支撑；不能只有计划文字、smoke test 或 review PASS。
+- `df-review-loop` 普通 code review PASS 不能代表 coverage PASS；必要时调用 `$df-review-loop --coverage` 或等价 coverage review。
+- `handoff.md` 必须写明覆盖项已核对、缺口列表为空，或列出 waiver 与残余风险。缺口非空时状态不得写成 `uat_ready`。
 
 ## 连续执行
 

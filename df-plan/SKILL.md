@@ -112,6 +112,14 @@ metadata:
 
 `checklist.yaml` 固定检查项（除非 waived）：设计文档同步、发布闭环适用性、唯一事实源（禁止自然语言复述门禁逻辑）。
 
+### Capability Coverage Matrix
+
+正式计划必须把用户可见能力拆成可执行、可验证、可 UAT 的覆盖矩阵。每个能力至少映射到：`plan` 来源、`checklist.yaml` id、`validation.md` 验证项、`uat.md` 项、证据口径、waiver 或残余风险。
+
+高风险 UI、插件、真实浏览器、Dify、ERP、上传、粘贴、截图、PDF、Excel、附件等用户可见能力，不得合并成一个粗粒度 checklist 项；必须拆到能独立实现和独立验证的任务。
+
+若 `plan.md` 或 `uat.md` 出现能力，但 `checklist.yaml` 没有对应实现项，计划不得进入 `ready_for_execute`。要么补齐 checklist / validation / UAT 映射，要么写明 waiver 和残余风险；高风险核心能力只有 waiver 时不得建议执行或验收。
+
 ## 第四步：UAT 覆盖矩阵与 Blast Radius Guard
 
 ### UAT 覆盖矩阵

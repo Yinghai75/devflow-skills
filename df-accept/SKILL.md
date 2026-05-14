@@ -27,6 +27,7 @@ metadata:
 14. 本 feature 涉及行为变更时，检查 `devflow/shared/golden_sets/` 中受影响的样本是否已更新；golden 门禁是否已跑且样本与当前代码一致。
 15. `acceptance.md` 必须记录 `codebase_map_checked`、`truth_doc_checked`、`golden_set_checked` 及各自的 refreshed/waiver 状态。未完成不得归档。
 16. 若本 feature 的 `first_pass` UAT 发现 3 个或更多 issue，在 `acceptance.md` 记录 `execute_validation_gap`：回顾哪些失败本可在 execute 阶段通过更强 gate、RED 测试或 golden sample 发现，并把改进建议写入 roadmap、backlog 或后续 feature 的 `validation.md` 参考。该项是回顾性检查，不单独阻断归档。
+17. 若 checklist、handoff 或提交记录显示本 feature 使用过 `$df-review-loop`，必须检查 `evidence/reviews/` 与 `review-findings.yaml`：最终状态应为 `review_loop_status: pass`，或所有未修 finding 都有明确 waiver/manual_review 记录；未处理 P0/P1、缺失 review 轮次证据或 `tooling_blocked` 未写补救条件时不得归档。
 
 ## 脚本门禁
 
@@ -57,6 +58,7 @@ metadata:
 - 任一门禁在 manifest 中记录为 failed。
 - 固定 checklist 项没有完成或 waiver，包括设计文档同步检查、发布闭环适用性检查。
 - `uat.md` 仍是初始模板、只有泛泛人工验收记录，或缺少核心用户可见路径的人工 UAT/waiver。
+- 已触发 `$df-review-loop` 但 `review-findings.yaml` 仍有未处理 P0/P1，或 review 证据缺失且没有明确 waiver/manual_review。
 
 agent 自己写入的 `validation_evidence: 已通过` 只算说明文字，不算通过证据。
 

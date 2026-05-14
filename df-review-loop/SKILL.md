@@ -9,11 +9,17 @@ metadata:
 
 把人工 `/review -> 修复 -> 再 /review` 变成可落盘、可止损的机器循环。本 skill 只处理 AI code review，不替代 validation、UAT 或 accept audit。
 
+## 环境要求
+
+- 自动模式要求当前环境可执行 `codex exec review`，并支持 `--uncommitted`、`--base`、`--commit`、`--json` 和 `-o/--output-last-message`。
+- 这是 Codex CLI 集成，不是跨 agent 通用审查协议。非 Codex 环境或命令不可用时，不能声称 review PASS；必须在 `review-findings.yaml` 写 `review_loop_status: tooling_blocked`，并在 `handoff.md` 写清人工 review checklist、阻断原因和后续补跑条件。
+- 若只能做人工审查，人工结论必须写入 `review-findings.yaml` 的 waiver 或 manual_review 段，供 `$df-accept` 复核。
+
 ## 边界
 
 - 不调用 TUI slash command `/review`；必须使用普通 shell 入口 `codex exec review`。
 - review 输出必须落盘到当前 feature 的 `evidence/reviews/`，不能只留在聊天或终端输出。
-- review finding 不是 UAT issue；只有用户可见失败面才进 `issues.yaml`。review finding 先写入 `review-findings.yaml` 或 `handoff.md`。
+- review finding 不是 UAT issue；只有用户可见失败面才进 `issues.yaml`。review finding 写入 `review-findings.yaml`；旧 feature 缺少该文件时先创建，不把 `handoff.md` 当主要 finding 表。
 - 不能无限追 P2。P0/P1 必修；P2 只修确定 bug、局部且在当前 scope 内的问题，其余写 waiver。
 - 每轮修复仍必须按调用方 skill 执行 validation、git checkpoint、codebase map 刷新和状态更新。
 
@@ -22,20 +28,21 @@ metadata:
 - 提交前审查当前改动：使用 `--uncommitted`。
 - 审查单个已提交 commit：使用 `--commit <sha>`。
 - 审查一个分支或多 commit aggregate：使用 `--base <branch-or-sha>`。
+- 覆盖漏实现审查：使用 `coverage review mode`，通常在 aggregate review 或 `$df-execute` 收口前执行；目标可以是 `--base <branch-or-sha>` 或当前 feature 未提交 diff。
 - 若已对某个历史 commit 做了 follow-up fix，下一轮复审必须切到 aggregate 目标（通常 `--base <base>` 或 `--uncommitted`），不要继续审原始 SHA，否则会重复报已由后续 commit 修掉的问题。
 
 ## 模型设置
 
-默认命令参数：
+发布默认不硬编码本机模型别名。模型和 effort 选择顺序：
 
-`-m codex-auto-review -c 'model_reasoning_effort="high"'`
-
-原因：reviewer 应比 executor 更强；`codex-auto-review` 是本机 catalog 中的 review 专用模型，`high` 比 `medium` 更适合发现跨文件正确性问题，成本又低于默认把所有 review 提到 `xhigh`。
+1. 若项目在 `devflow/shared/review_config.yaml` 或环境变量 `DEVFLOW_REVIEW_MODEL`、`DEVFLOW_REVIEW_EFFORT` 中声明 review 配置，优先使用，并在 `review-findings.yaml` 记录来源。
+2. 若没有项目配置，默认继承当前 Codex 配置，只显式设置 `model_reasoning_effort="high"`。
+3. 本机存在 `codex-auto-review` 这类专用模型别名时可以使用，但必须记录为 local override；不得把该别名写成跨机器默认。
 
 降级与升级：
 
-- 仅文档、文案或很小的低风险 diff：可用 `codex-auto-review medium`。
-- 本机没有 `codex-auto-review` 或命令失败：改用 `gpt-5.5 high`；仍失败则继承当前 Codex 配置，并在 evidence 写明 fallback。
+- 仅文档、文案或很小的低风险 diff：可用 `medium` effort，并记录降级原因。
+- 指定模型失败：去掉 `-m` 继承当前 Codex 配置重试一次，并在 `review-findings.yaml` 记录 fallback。
 - `xhigh` 只用于第三轮前的二次裁决、安全/数据损坏/跨模块职责问题，不能作为默认循环强度。
 
 ## 命令形态
@@ -44,9 +51,11 @@ metadata:
 
 `<feature>/evidence/reviews/<YYYYMMDD-HHMMSS>-<target>/round-01.md`
 
+短 instructions 可直接作为 PROMPT。复杂 instructions 必须先落盘为同目录的 `instructions.md`，再通过 stdin 传给 Codex，避免长命令和引号转义问题。
+
 执行形态：
 
-`codex exec review <target> -m <model> -c 'model_reasoning_effort="<effort>"' --json -o <round.md> "<review instructions>" > <round.jsonl>`
+`codex exec review <target flags> <model flags> -c 'model_reasoning_effort="<effort>"' --json -o <round.md> - < <instructions.md> > <round.jsonl>`
 
 若当前 shell/终端不适合保存 JSONL，至少必须保留 `-o <round.md>`；不能让 review 只输出到聊天上下文。
 
@@ -56,6 +65,20 @@ review instructions 必须包含：
 - 本轮目标是提交前、单 commit 还是 aggregate。
 - P0/P1/P2 的处理规则：P0/P1 阻断；P2 仅确定 bug 阻断；风格或计划外扩 scope 写 waiver。
 - 只报告可证明的 bug、数据风险、安全问题、回归风险或缺失测试；不要把超出当前计划的重构建议当阻断。
+
+## coverage review mode
+
+coverage review mode 用来审“计划承诺的用户可见能力是否缺实现”，不等同于普通 diff code review。普通 code review PASS 不能代表 coverage PASS。
+
+该模式的 instructions 必须要求模型对照 `plan.md`、`uat.md`、`checklist.yaml`、当前 diff、`evidence/manifest.json` 和 `handoff.md` 查缺失能力，输出每个能力的实现、验证、UAT 支撑或 waiver。
+
+coverage review 的 P1 包括：
+
+- `plan.md` 或 `uat.md` 承诺的能力没有对应 UI、API、工作流、配置、测试或运行态证据。
+- UAT 项没有实现支撑，或 checklist 只完成了相邻能力。
+- validation 只覆盖 smoke / build / lint，未覆盖用户路径、真实浏览器路径、插件交互、Dify 发布生效、ERP 写入或附件类能力。
+
+coverage finding 写入 `review-findings.yaml`，并标记 `mode: coverage`；未修复或未 waiver 的 P1 会阻断 `$df-execute` 宣称 `uat_ready`。
 
 ## 解析与分流
 
@@ -73,7 +96,7 @@ finding 指纹使用 `priority + file + line + normalized_summary`。同一指�
 默认最多 3 轮。
 
 1. 运行 review 并落盘。
-2. 解析 findings，更新 `review-findings.yaml` 或 `handoff.md`。
+2. 解析 findings，更新 `review-findings.yaml`。
 3. 对阻断项执行修复：`df-execute` 场景回 executor；`df-fix` 场景回当前 issue 的修复流程。
 4. 跑调用方要求的 targeted validation 和门禁。
 5. 做 git checkpoint；提交信息可包含 `review` 或调用方 issue/checklist id。
@@ -89,6 +112,8 @@ finding 指纹使用 `priority + file + line + normalized_summary`。同一指�
 - 同一方案造成新的 P1/P2 回归。
 - 需要第三个 workaround。
 - review finding 要求改变模块职责、公共合同、状态归属、数据流方向、共享抽象或部署边界。
+
+review loop 内每轮修复都算作调用方（`df-execute` 或 `df-fix`）的一次修复尝试，计入调用方止损计数器；不能把 review 内部修复轮次当作独立空间绕过 `doom_loop_breaker`。
 
 止损后不得继续补丁式修复。根因不清则回 integration-debug；根因清楚但需要重设计则回 `$df-plan`。
 

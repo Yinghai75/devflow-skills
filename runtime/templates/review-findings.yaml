@@ -1,0 +1,7 @@
+# AI review findings 正式视图。由 df-review-loop 更新，df-accept 复核。
+review_loop_status: not_applicable
+rounds: []
+findings: []
+waivers: []
+manual_review: []
+tooling_blocked: false

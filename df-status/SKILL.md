@@ -28,7 +28,7 @@ metadata:
 
 `uv run python /Users/yinghai/.codex/local/devflow/devflow_cli.py --repo <repo> status -r`
 
-然后读取输出中的 feature 目录，并补读 `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`issues.yaml`。
+然后读取输出中的 feature 目录，并补读 `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`issues.yaml`。若存在 `review-findings.yaml`，同时读取其 `review_loop_status`、未处理 P0/P1 和 waiver/manual_review 记录。
 
 ## 下一步
 
