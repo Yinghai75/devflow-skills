@@ -126,12 +126,12 @@ DevFlow separates verification into distinct concepts, avoiding ambiguity betwee
 | Concept | Meaning | Stage | Output |
 |---------|---------|-------|--------|
 | **validation** (machine verification) | tests, builds, gate scripts, runtime probes | df-execute, df-fix | `evidence/manifest.json` |
-| **coverage verification** | goal-backward check that user-visible capabilities have implementation, validation, UAT, or waivers | df-execute | coverage summary in `handoff.md`, coverage findings in `review-findings.yaml` |
+| **coverage verification** | checks only the `Capability Coverage Matrix` so user-visible capabilities have implementation, validation, UAT, non-substitutable evidence, or waivers | df-execute | coverage summary in `handoff.md`, coverage findings in `review-findings.yaml` |
 | **AI review loop** | `codex exec review`, P0/P1/P2 triage, fix/re-review, waivers, and stop-loss; `dependency_scope` splits stop-loss into feature stop, current-item freeze, or follow-up | df-review-loop, df-execute, df-fix | `evidence/reviews/`, `review-findings.yaml` |
 | **UAT** (manual acceptance) | real paths, real environments, manual operations and observations | df-uat | `uat.md` records |
 | **accept audit** (archival audit) | evidence completeness, coverage, stale gates | df-accept | `acceptance.md` |
 
-There is no standalone "verify" stage. Coverage verification is a goal-backward check inside `df-execute`, not a new phase. `verifier` is a sub-agent role name in df-execute and df-fix, responsible for running validation gates and checking review/runtime evidence. AI diff review is handled by `df-review-loop`, and stop-loss follow-through is split by `dependency_scope`.
+There is no standalone "verify" stage. `Capability Coverage Matrix` is the single coverage source of truth; coverage verification, coverage review, issue closure, and accept audit all check that matrix. `verifier` is a sub-agent role name in df-execute and df-fix, responsible for running validation gates and checking review/runtime evidence. AI diff review is handled by `df-review-loop`, and stop-loss follow-through is split by `dependency_scope`.
 
 `df-plan` is also the pre-plan discovery entry point, covering new project bootstrap, brownfield work, greenfield work inside an existing repo, and architecture adjustment. When boundaries are unclear, clarify users/roles, product shape, tech stack, architecture boundaries, contracts, and the first vertical slice before writing the formal plan. `df-plan` does not run tech-stack scaffolding; those tasks belong in `$df-execute`.
 
@@ -223,7 +223,7 @@ If execution or fixing reveals that module responsibilities, public contracts, s
 
 | Skill | What it does | What it outputs |
 | --- | --- | --- |
-| `df-plan` | Start and plan a feature; when needed, run new project bootstrap / pre-plan discovery before writing plan and UAT coverage. | `context.md`, `plan.md`, `checklist.yaml`, `validation.md`, `uat.md`, `state.yaml` |
+| `df-plan` | Start and plan a feature; when needed, run new project bootstrap / pre-plan discovery before writing plan and the `Capability Coverage Matrix`. | `context.md`, `plan.md`, `checklist.yaml`, `validation.md`, `uat.md`, `state.yaml` |
 | `df-backlog` | Record later work without interrupting the current feature. | updated `devflow/roadmap.md` |
 | `df-codebase-map` | Maintain the layered code map: OVERVIEW plus matching module cards. | `devflow/shared/codebase_map/` |
 | `df-constraint-audit` | Read-only audit for drift between gate descriptions, status semantics, contracts, and facts. | constraint findings and source-of-truth recommendations |

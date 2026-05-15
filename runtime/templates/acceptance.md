@@ -15,10 +15,15 @@
 - [ ] truth doc 已检查；涉及边界变更时已同步更新或明确豁免
 - [ ] golden set 已检查；涉及行为变更时样本已更新或明确豁免
 - [ ] AI review loop 证据已检查；适用时 findings 已 pass、waiver 或 manual_review
+- [ ] Capability Coverage Matrix 已闭环；高风险能力逐行具备实现、validation、UAT、不可替代证据或 waiver
 - [ ] execute validation gap 已回顾；首测发现 3 个或更多 issue 时已记录改进建议
 
 ## Stale Gate
 
+- capability_coverage_matrix_checked: false
+- capability_coverage_matrix_ref: plan.md#capability-coverage-matrix
+- capability_coverage_matrix_evidence: []
+- capability_coverage_matrix_waiver: 无
 - codebase_map_checked: false
 - codebase_map_refreshed: []
 - truth_doc_checked: false

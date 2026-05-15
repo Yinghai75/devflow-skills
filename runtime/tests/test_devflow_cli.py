@@ -66,6 +66,12 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertIn('lane: "high-risk"', plan)
         self.assertIn("修复 Dify 状态机回填", plan)
         self.assertIn("## 非目标", plan)
+        self.assertEqual(1, plan.count("## Capability Coverage Matrix"))
+        self.assertNotIn("verify matrix", plan.lower())
+        self.assertIn("用户动作链", plan)
+        self.assertIn("下游成功判据", plan)
+        self.assertIn("失败信号", plan)
+        self.assertIn("不可替代证据", plan)
         context = (feature / "context.md").read_text(encoding="utf-8")
         checklist = (feature / "checklist.yaml").read_text(encoding="utf-8")
         self.assertIn('target_env: "local"', context)
@@ -73,7 +79,14 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertIn("codebase_map_waiver:", context)
         self.assertIn("确认设计文档是否需要同步更新", checklist)
         self.assertIn("确认发布闭环是否适用", checklist)
+        validation = (feature / "validation.md").read_text(encoding="utf-8")
+        self.assertIn("Capability Coverage Matrix 核验", validation)
+        self.assertIn("用户动作链", validation)
+        uat = (feature / "uat.md").read_text(encoding="utf-8")
+        self.assertIn("Capability Coverage Matrix 对齐项", uat)
+        self.assertIn("对应下游成功判据", uat)
         acceptance = (feature / "acceptance.md").read_text(encoding="utf-8")
+        self.assertIn("capability_coverage_matrix_checked: false", acceptance)
         self.assertIn("codebase_map_checked: false", acceptance)
         self.assertIn("truth_doc_checked: false", acceptance)
         self.assertIn("golden_set_checked: false", acceptance)
@@ -214,6 +227,53 @@ class DevFlowCliTest(unittest.TestCase):
         self.complete_default_checklist(feature)
         update_state(feature, status="validated")
         add_uat_issue(feature, "按钮无响应", "点击保存后没有提示")
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("仍有未关闭 UAT issue", result.messages)
+
+    def test_accept_blocks_fixed_pending_retest_issue(self):
+        feature = create_feature(self.repo, "待复测 issue", "standard", "修复 UAT", [], [])
+        self.complete_default_checklist(feature)
+        update_state(feature, status="validated")
+        (feature / "issues.yaml").write_text(
+            """issues:
+  - id: UAT-001
+    title: "已修待复测"
+    severity: high
+    status: fixed_pending_retest
+    description: "代码已改，但用户原路径尚未复测"
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("仍有未关闭 UAT issue", result.messages)
+
+    def test_accept_blocks_closed_issue_with_pending_retest_markers(self):
+        feature = create_feature(self.repo, "旧待复测 issue", "standard", "修复 UAT", [], [])
+        self.complete_default_checklist(feature)
+        update_state(feature, status="validated")
+        (feature / "issues.yaml").write_text(
+            """issues:
+  - id: UAT-001
+    title: "closed 但需复测"
+    severity: high
+    status: closed
+    needs_retest: true
+    description: "legacy closed 仍需复测"
+  - id: UAT-002
+    title: "closed 但 pending"
+    severity: medium
+    status: closed
+    retest_status: pending
+    description: "legacy closed pending"
+""",
+            encoding="utf-8",
+        )
 
         result = accept_feature(feature)
 
@@ -467,11 +527,31 @@ tooling_blocked: true
         self.assertFalse(result.ok)
         self.assertIn("缺少机器生成的门禁证据", result.messages)
 
+    def test_accept_blocks_high_risk_without_coverage_matrix_closure(self):
+        feature = create_feature(self.repo, "高风险矩阵未闭环", "high-risk", "改状态机", [], [])
+        recommend_gates(feature, surfaces=["state-machine"])
+        self.complete_default_checklist(feature)
+        update_state(feature, status="validated", red_evidence="已确认 state-machine-regression 的 RED 样本")
+        (feature / "evidence").mkdir()
+        (feature / "evidence" / "manifest.json").write_text(
+            json.dumps(
+                {"gates": [{"gate_id": "state-machine-regression", "status": "passed"}]},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("高风险能力缺少 Capability Coverage Matrix 闭环证据", result.messages)
+
     def test_run_gate_records_evidence_and_accept_archives_feature(self):
         feature = create_feature(self.repo, "高风险有门禁", "high-risk", "改状态机", [], [])
         recommend_gates(feature, surfaces=["state-machine"])
         self.complete_default_checklist(feature)
         update_state(feature, status="validated", red_evidence="已确认 state-machine-regression 的 RED 样本")
+        self.mark_coverage_matrix_checked(feature)
         self.replace_gate_command(feature, "state-machine-regression", "uv --version")
 
         evidence = run_gate(feature, "state-machine-regression")
@@ -788,6 +868,17 @@ tooling_blocked: true
         review_dir = feature / "evidence" / "reviews" / "round-01"
         review_dir.mkdir(parents=True)
         (review_dir / "round-01.md").write_text("review pass", encoding="utf-8")
+
+    def mark_coverage_matrix_checked(self, feature: Path) -> None:
+        path = feature / "acceptance.md"
+        text = path.read_text(encoding="utf-8")
+        path.write_text(
+            text.replace(
+                "capability_coverage_matrix_checked: false",
+                "capability_coverage_matrix_checked: true",
+            ),
+            encoding="utf-8",
+        )
 
     def issue_fields(self, path: Path) -> dict[str, str]:
         fields: dict[str, str] = {}

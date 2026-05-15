@@ -23,9 +23,10 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 
 ## coverage expansion gate
 
-改代码前必须交叉读取 `plan.md`、`checklist.yaml`、`validation.md`、`uat.md` 和 `handoff.md`，列出“能力 -> 实现项 -> 机器验证 -> UAT -> 证据口径”的覆盖映射，并把摘要写入 `handoff.md` 的 `coverage_snapshot` 区块。
+改代码前必须交叉读取 `plan.md`、`checklist.yaml`、`validation.md`、`uat.md` 和 `handoff.md`，只核验 `plan.md` 中的 `Capability Coverage Matrix`。coverage verification 是对该矩阵的检查动作，不是新阶段，也不得生成额外验证或关闭矩阵。
 
-- 若用户可见能力、真实运行路径或 UAT 项没有对应 checklist 实现项，必须暂停执行并回到 `$df-plan`，或先补齐计划产物后再继续；不得把缺口留到 UAT 才发现。
+- 将每行按“用户可见能力 -> 用户动作链 -> 下游成功判据 -> 失败信号 -> 实现项 -> validation -> UAT 项 -> 不可替代证据 -> waiver/残余风险”核对，并把摘要写入 `handoff.md` 的 `coverage_snapshot` 区块。
+- 若用户可见能力、真实运行路径或 UAT 项没有对应 checklist 实现项，必须暂停执行并回到 `$df-plan`，或先补齐同一矩阵后再继续；不得把缺口留到 UAT 才发现。
 - 若 checklist 项只有烟雾测试或文档验证，无法覆盖对应用户路径，必须补 `validation.md` 或写 waiver；高风险核心路径没有验证支撑时不得开工。
 - 工作台初始空态、操作人绑定、附件上传、截图/PDF/Excel/粘贴/上传等能力，必须逐项看到 checklist、validation、UAT 三处对应项或 waiver。
 
@@ -64,8 +65,8 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 
 宣称“可进入 `$df-uat`”前，必须从 feature 目标、Capability Coverage Matrix 和 `uat.md` 反推覆盖是否闭合：
 
-- 每个用户可见能力都有代码或配置实现、运行态/机器验证证据、UAT 项或明确 waiver。
-- 每条 UAT 项都有实现支撑；不能只有计划文字、smoke test 或 review PASS。
+- 每个矩阵行都有代码或配置实现、运行态/机器验证证据、UAT 项或明确 waiver。
+- 每条 UAT 项都能回指同一矩阵行；不能只有计划文字、smoke test 或 review PASS。
 - `df-review-loop` 普通 code review PASS 不能代表 coverage PASS；必要时指示 `$df-review-loop` 以 coverage review mode 运行，或执行等价 coverage review。
 - `handoff.md` 必须写明覆盖项已核对、缺口列表为空，或列出 waiver 与残余风险。缺口非空时状态不得写成 `uat_ready`。
 

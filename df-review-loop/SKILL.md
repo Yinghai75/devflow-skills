@@ -70,15 +70,15 @@ review instructions 必须包含：
 
 coverage review mode 用来审“计划承诺的用户可见能力是否缺实现”，不等同于普通 diff code review。普通 code review PASS 不能代表 coverage PASS。
 
-该模式的 instructions 必须要求模型对照 `plan.md`、`uat.md`、`checklist.yaml`、当前 diff、`evidence/manifest.json` 和 `handoff.md` 查缺失能力，输出每个能力的实现、验证、UAT 支撑或 waiver。
+该模式只审 `plan.md` 的 `Capability Coverage Matrix`。instructions 必须要求模型对照该矩阵、`uat.md`、`checklist.yaml`、当前 diff、`evidence/manifest.json` 和 `handoff.md` 查缺失能力，输出每个矩阵行的实现、validation、UAT 支撑、不可替代证据或 waiver。
 
 coverage review 的 P1 包括：
 
-- `plan.md` 或 `uat.md` 承诺的能力没有对应 UI、API、工作流、配置、测试或运行态证据。
-- UAT 项没有实现支撑，或 checklist 只完成了相邻能力。
-- validation 只覆盖 smoke / build / lint，未覆盖用户路径、真实浏览器路径、插件交互、Dify 发布生效、ERP 写入或附件类能力。
+- `Capability Coverage Matrix` 承诺的用户可见能力没有对应 UI、API、工作流、配置、测试或运行态证据。
+- 矩阵中的用户动作链、下游成功判据或失败信号没有实现/validation/UAT 支撑。
+- validation 只覆盖 smoke / build / lint，未覆盖矩阵要求的用户路径、真实浏览器路径、插件交互、Dify 发布生效、ERP 写入或附件类能力。
 
-coverage finding 写入 `review-findings.yaml`，并标记 `mode: coverage`；未修复或未 waiver 的 P1 会阻断 `$df-execute` 宣称 `uat_ready`。
+coverage finding 写入 `review-findings.yaml`，并标记 `mode: coverage`；未修复或未 waiver 的 P1 会阻断 `$df-execute` 宣称 `uat_ready`，也阻断 `$df-accept` 归档。
 
 ## 解析与分流
 

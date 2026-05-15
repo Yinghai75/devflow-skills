@@ -640,11 +640,62 @@ def checklist_incomplete(feature: Path) -> bool:
     return not saw_item
 
 
-def has_open_issues(feature: Path) -> bool:
+def issue_blocks(feature: Path) -> list[dict[str, str]]:
+    blocks: list[dict[str, str]] = []
+    current: dict[str, str] | None = None
     for raw in (feature / "issues.yaml").read_text(encoding="utf-8").splitlines():
-        if raw.startswith("    status:") and raw.split(":", 1)[1].strip().strip('"') not in {"closed", "deferred"}:
+        stripped = raw.strip()
+        if stripped.startswith("- id:"):
+            if current is not None:
+                blocks.append(current)
+            current = {"id": stripped.split(":", 1)[1].strip().strip('"').strip("'")}
+            continue
+        if current is not None and raw.startswith("    ") and ":" in stripped:
+            key, value = stripped.split(":", 1)
+            current[key.strip()] = value.strip().strip('"').strip("'")
+    if current is not None:
+        blocks.append(current)
+    return blocks
+
+
+def has_open_issues(feature: Path) -> bool:
+    for issue in issue_blocks(feature):
+        status = issue.get("status", "open").lower()
+        if status == "fixed_pending_retest":
+            return True
+        if issue.get("needs_retest", "").lower() == "true":
+            return True
+        if issue.get("retest_status", "").lower() == "pending":
+            return True
+        if status not in {"closed", "deferred"}:
             return True
     return False
+
+
+def high_risk_missing_coverage_matrix_evidence(feature: Path) -> bool:
+    plan = (feature / "plan.md").read_text(encoding="utf-8")
+    acceptance = (feature / "acceptance.md").read_text(encoding="utf-8")
+    required_fields = [
+        "用户可见能力",
+        "用户动作链",
+        "下游成功判据",
+        "失败信号",
+        "实现项",
+        "validation",
+        "UAT 项",
+        "不可替代证据",
+        "waiver/残余风险",
+    ]
+    if "Capability Coverage Matrix" not in plan:
+        return True
+    if any(field not in plan for field in required_fields):
+        return True
+    for raw in acceptance.splitlines():
+        stripped = raw.strip().removeprefix("- ").strip()
+        if stripped.startswith("capability_coverage_matrix_checked:"):
+            value = stripped.split(":", 1)[1].strip().strip('"').strip("'").lower()
+            return value != "true"
+    return True
 
 
 def validation_is_initial_template(feature: Path, lane: str) -> bool:
@@ -818,6 +869,8 @@ def accept_feature(feature: Path | str) -> AcceptResult:
         messages.append("高风险任务未选择有效防炸门禁")
     if lane == "high-risk" and not state.get("red_evidence"):
         messages.append("高风险任务缺少 RED 证据或历史故障样本")
+    if lane == "high-risk" and high_risk_missing_coverage_matrix_evidence(feature):
+        messages.append("高风险能力缺少 Capability Coverage Matrix 闭环证据")
     if failed_gates:
         messages.append("存在失败门禁证据")
     if effective and not records:

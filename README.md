@@ -82,7 +82,7 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ## 快速上手
 
 ```bash
-/df-plan        # 启动并规划 feature：必要时先做 pre-plan discovery，再写计划和 UAT 覆盖矩阵
+/df-plan        # 启动并规划 feature：必要时先做 pre-plan discovery，再写计划和能力覆盖矩阵
 /df-backlog     # 先不做：把新想法登记到 roadmap/backlog，不打断当前 feature
 /df-codebase-map # 维护代码地图：OVERVIEW + 命中模块卡片，节省上下文
 /df-constraint-audit # 查约束漂移：审计门禁、状态语义、接口契约是否重复或矛盾
@@ -126,12 +126,12 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 | 概念 | 含义 | 执行阶段 | 产物 |
 |------|------|----------|------|
 | **validation**（机器验证） | 测试、构建、门禁脚本、runtime probe | df-execute、df-fix | `evidence/manifest.json` |
-| **coverage verification**（覆盖核验） | 从目标、计划和 UAT 反推用户可见能力是否都有实现、验证、UAT 或 waiver | df-execute | `handoff.md` 覆盖摘要、`review-findings.yaml` coverage findings |
+| **coverage verification**（覆盖核验） | 只核验 `Capability Coverage Matrix` 中的用户可见能力是否都有实现、validation、UAT、不可替代证据或 waiver | df-execute | `handoff.md` 覆盖摘要、`review-findings.yaml` coverage findings |
 | **AI review loop**（代码审查循环） | `codex exec review`、P0/P1/P2 分流、修复复审、waiver 和止损；stop-loss 通过 `dependency_scope` 分流为整 feature 停止、仅当前项冻结或后置跟进 | df-review-loop、df-execute、df-fix | `evidence/reviews/`、`review-findings.yaml` |
 | **UAT**（人工验收） | 真实路径、真实环境、人工操作和观察 | df-uat | `uat.md` 记录 |
 | **accept audit**（归档审计） | 证据完整性、覆盖率、stale gate | df-accept | `acceptance.md` |
 
-没有独立的"verify"阶段。coverage verification 是 `df-execute` 的目标反向核验，不是新阶段。`verifier` 是 df-execute 和 df-fix 中的子代理角色名，负责执行 validation 门禁、复核 review 证据和运行态证据；AI diff 审查由 `df-review-loop` 统一处理，止损后是否继续后续项按 `dependency_scope` 分流。
+没有独立的"verify"阶段。`Capability Coverage Matrix` 是唯一覆盖事实源；coverage verification、coverage review、issue closure 和 accept audit 都只核验这张矩阵。`verifier` 是 df-execute 和 df-fix 中的子代理角色名，负责执行 validation 门禁、复核 review 证据和运行态证据；AI diff 审查由 `df-review-loop` 统一处理，止损后是否继续后续项按 `dependency_scope` 分流。
 
 `df-plan` 也是 pre-plan discovery 入口，覆盖 new project bootstrap、brownfield、仓内 greenfield 和 architecture adjustment 回流。边界不清时先澄清用户/角色、产品形态、技术栈、架构边界、合同和首个垂直切片；清楚后才写正式计划。`df-plan` 不执行技术栈脚手架，脚手架任务交给 `$df-execute`。
 
@@ -223,7 +223,7 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 
 | Skill | 做什么 | 产出什么 |
 | --- | --- | --- |
-| `df-plan` | 启动并规划 feature；必要时先做 new project bootstrap / pre-plan discovery，目标清楚后写计划和 UAT 覆盖矩阵。 | `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`uat.md`、`state.yaml` |
+| `df-plan` | 启动并规划 feature；必要时先做 new project bootstrap / pre-plan discovery，目标清楚后写计划和 `Capability Coverage Matrix`。 | `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`uat.md`、`state.yaml` |
 | `df-backlog` | 登记不应打断当前 feature 的新事项。 | 更新 `devflow/roadmap.md` |
 | `df-codebase-map` | 维护分层代码地图：OVERVIEW + 命中模块卡片。 | `devflow/shared/codebase_map/` |
 | `df-constraint-audit` | 只读审计门禁描述、状态语义和接口契约是否与事实源漂移。 | 约束问题清单、建议唯一事实源 |
@@ -252,7 +252,7 @@ your-repo/
     │       ├── validation.md          # 验证方案 + 防炸门禁
     │       ├── state.yaml             # 当前状态、授权和断点
     │       ├── handoff.md             # 跨会话交接
-    │       ├── uat.md                 # UAT 覆盖矩阵和复测记录
+    │       ├── uat.md                 # UAT 项和复测记录
     │       ├── issues.yaml            # 当前 UAT 活跃问题视图
     │       ├── review-findings.yaml   # AI review findings、waiver 和最终状态
     │       ├── acceptance.md          # 验收报告

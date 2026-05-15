@@ -87,11 +87,12 @@ metadata:
 1. 读取 `issues.yaml` 中 open issue，确认目标 issue。
 2. 若目标 issue 为 `high-risk-fix` 或 `handoff.md` 含止损 checkpoint，先读止损区块和引用证据；闸门未满足前只能补运行态证据。
 3. 读取 `plan.md`、`validation.md`、`uat.md`、`handoff.md`、相关代码和测试，按“车道分流”定 lane。
-4. 来自真实环境、浏览器、插件、外部站点、登录态或发布后路径的 issue，先提取历史 GREEN 验证画像：入口、客户端、登录态、插件状态、样本、环境、最后可用基线、runtime gate。
+4. 从 `plan.md#capability-coverage-matrix` 抽取目标 issue 对应的能力行，生成 `issue_closure_contract`：用户动作链、下游成功判据、失败信号、实现项、validation、UAT 项、不可替代证据、waiver/残余风险。找不到对应能力行时先补同一矩阵或回 `$df-plan`，不得另建关闭矩阵。
+4b. 来自真实环境、浏览器、插件、外部站点、登录态或发布后路径的 issue，先提取历史 GREEN 验证画像：入口、客户端、登录态、插件状态、样本、环境、最后可用基线、runtime gate。
 5. 先定 RED：纯逻辑可用单测；UAT/runtime/跨模块必须用真实复现、HTTP 探测、容器检查、页面操作或契约 gate 击中失败面；mock 单测只能补防回归。
 6. 跨运行中组件的 issue，改代码前确认源码口径和运行态口径是否一致；无法确认时先把漂移风险写入证据表。
 7. 改代码前确认诊断字段 + `fix_lane` 已落盘且与本轮 RED 一致；根因明确且未命中止损则修复，根因不清先调查并记录假设、证据和最小复现。
-8. 修复后先复跑触发 issue 的同一真实步骤；跨组件链路还必须复跑不可替代 runtime gate，再按回归面清单跑最小自动测试、构建和对应门禁；代码改动关闭 issue 前必须调用 `$df-review-loop --uncommitted` 审查本轮修复 diff。
+8. 修复后先复跑 `issue_closure_contract` 中的用户原始动作链；只有失败信号消失且满足下游成功判据，才允许进入关闭流程。跨组件链路还必须复跑不可替代 runtime gate，再按回归面清单跑最小自动测试、构建和对应门禁；代码改动关闭 issue 前必须调用 `$df-review-loop --uncommitted` 审查本轮修复 diff。
 8b. 跨组件 issue 验证结论必须标注每个环节是运行态已验证还是仅代码已改；只有代码证据时不得写“已修复”，只能写“代码已改，运行态未验证”。凡是用户可见回归（q2 契约中列出的）在最终载体中出现，直接判 RED。
 9. 提交前确认已通过 UAT 的代码不受影响；有专用门禁时必须引用其 pass/fail 结果；`$df-review-loop` 的 P0/P1 未处理或无 waiver 时不得关闭 issue。
 10. 更新 `issues.yaml`、`uat.md`、`state.yaml`、`handoff.md`，证据区分真实复现/运行态验证、自动测试/门禁、回归面覆盖、验证画像是否一致；不得把未覆盖的面写成已通过。`issues.yaml` 只写当前失败面摘要、状态、最新证据路径、复测标记和 `history_ref`；完整命令输出、review 处理、rework 时间线和长证据清单写入 `evidence/` 或 `handoff.md`。若结论不是“可以 UAT”，必须在记录中补 `uat_unlock_next_steps` 或等价段落，写清进入 UAT 还差的最小动作、执行主体、样本/命令/页面、通过标准和阻断原因；禁止只写“不建议 UAT”“运行态未验证”“待复测”这类不可执行结论。

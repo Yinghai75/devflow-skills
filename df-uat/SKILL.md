@@ -16,7 +16,7 @@ metadata:
 1. 读取 active feature。
 2. 读取 `uat.md`、`acceptance.md`、`validation.md`、`handoff.md`，提取待人工验收项、已完成证据、waiver 和当前阻塞项。
 3. 开始 UAT 前先检查活跃 `issues.yaml`：超过 80 行，或任一 issue 超过 50 行，必须先运行 `uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`，校验 YAML 可解析，并确认下一个 UAT id 不会与活跃或历史 id 冲突。
-4. 先做 UAT 覆盖审计，再按顺序引导用户执行 UAT。每次只给 1-3 个明确操作步骤，并说明期望看到的结果。
+4. 先做 UAT 覆盖审计，确认每个 UAT 项都能回指 `plan.md#capability-coverage-matrix` 的用户动作链、下游成功判据、失败信号和不可替代证据，再按顺序引导用户执行 UAT。每次只给 1-3 个明确操作步骤，并说明期望看到的结果。
 5. 若验收项涉及真实浏览器、真实客户端、本机插件、外部站点、登录态、设备态、账号态或本地缓存/会话，先从已有文档和证据提取"验证画像"：
    - 入口路径：用户如何进入该能力，是手动打开、系统跳转、脚本拉起还是页面内继续操作。
    - 客户端画像：浏览器/客户端品牌、channel、是否真实用户窗口。
@@ -107,11 +107,11 @@ metadata:
 
 ## UAT 覆盖审计
 
-开始引导前，交叉检查 `checklist.yaml`、`validation.md`、`handoff.md`、`issues.yaml` 与 `uat.md`，确认每个用户可见能力和真实运行路径都有对应 UAT 项。
+开始引导前，交叉检查 `plan.md#capability-coverage-matrix`、`checklist.yaml`、`validation.md`、`handoff.md`、`issues.yaml` 与 `uat.md`，确认每个用户可见能力和真实运行路径都有对应 UAT 项，且 UAT 操作步骤与矩阵里的用户动作链、下游成功判据、失败信号一致。
 
 必须先补 `uat.md` 再继续引导的情况：`uat.md` 仍是初始模板；用户可见能力只有机器证据没有人工 UAT 项；涉及真实浏览器/官网/插件/Dify 发布/ERP 写入的路径没有真实环境 UAT 项；已关闭 issue 没有复测记录；高风险能力没写清验证画像。
 
-补项时写清操作步骤、期望结果和证据口径；高风险项同时写最小验证画像（入口、客户端、profile/登录态、目标环境、样本）。机器证据不替代人工 UAT 通过。用户明确不做某项时记录 waiver 和残余风险；高风险核心能力 waiver 后不得建议 `$df-accept`。前置核心路径的缺口优先引导。
+补项时只补同一 `Capability Coverage Matrix` 对应的 UAT 项，写清操作步骤、期望结果、失败信号和不可替代证据；高风险项同时写最小验证画像（入口、客户端、profile/登录态、目标环境、样本）。机器证据不替代人工 UAT 通过。用户明确不做某项时记录 waiver 和残余风险；高风险核心能力 waiver 后不得建议 `$df-accept`。前置核心路径的缺口优先引导。
 
 ## 下一步
 

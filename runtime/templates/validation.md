@@ -4,6 +4,15 @@
 
 - 待补充。
 
+## Capability Coverage Matrix 核验
+
+- 矩阵来源：`plan.md#capability-coverage-matrix`。
+- 用户动作链：待补充。
+- 下游成功判据：待补充。
+- 失败信号：待补充。
+- 不可替代证据：待补充。
+- 本文件只记录每个矩阵行对应的 validation 项；不得另建额外验证或关闭矩阵。
+
 ## Blast Radius Guard
 
 ### Impact Map

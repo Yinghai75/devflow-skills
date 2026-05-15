@@ -98,7 +98,7 @@ metadata:
 - `validation.md`：基础验证和 Blast Radius Guard。
 - `state.yaml`：写入 `status: planned`，`execution_authorized: false`。
 - `handoff.md`：当前断点，明确"等待 `$df-execute` 授权"。
-- `uat.md`：人工 UAT 覆盖矩阵（见第四步）。
+- `uat.md`：人工 UAT 项（见第四步）。
 - `context.md`：更新 codebase map 区块和 roadmap 位置。
 - `devflow/roadmap.md`：长目标时维护。
 
@@ -114,19 +114,23 @@ metadata:
 
 ### Capability Coverage Matrix
 
-正式计划必须把用户可见能力拆成可执行、可验证、可 UAT 的覆盖矩阵。每个能力至少映射到：`plan` 来源、`checklist.yaml` id、`validation.md` 验证项、`uat.md` 项、证据口径、waiver 或残余风险。
+正式计划必须把用户可见能力拆成唯一的 `Capability Coverage Matrix`。不得再新增验证矩阵、关闭矩阵、额外 UAT 矩阵等并行事实源。
+
+每行必须包含：用户可见能力、用户动作链、下游成功判据、失败信号、实现项、validation、UAT 项、不可替代证据、waiver/残余风险。
 
 高风险 UI、插件、真实浏览器、Dify、ERP、上传、粘贴、截图、PDF、Excel、附件等用户可见能力，不得合并成一个粗粒度 checklist 项；必须拆到能独立实现和独立验证的任务。
 
+高风险 UI、插件、浏览器、Dify、ERP、上传、粘贴、截图、附件能力不能只写“按钮可用”“能提交”“页面展示”这类前置状态；下游成功判据必须写到下一跳可观察成功，例如任务创建、请求注入、会话输入、字段回填、文件落库、ERP 写入或运行态日志。
+
 若 `plan.md` 或 `uat.md` 出现能力，但 `checklist.yaml` 没有对应实现项，计划不得进入 `ready_for_execute`。要么补齐 checklist / validation / UAT 映射，要么写明 waiver 和残余风险；高风险核心能力只有 waiver 时不得建议执行或验收。
 
-## 第四步：UAT 覆盖矩阵与 Blast Radius Guard
+## 第四步：UAT 项与 Blast Radius Guard
 
-### UAT 覆盖矩阵
+### UAT 项
 
-从 Impact Map、Protected Surfaces、Golden Set Delta 反推人工 UAT 项写入 `uat.md`。每个用户可见新能力、真实浏览器路径、插件交互、发布后运行态路径必须有 UAT 项。机器测试只能作为支持证据。
+从 `Capability Coverage Matrix`、Impact Map、Protected Surfaces、Golden Set Delta 反推人工 UAT 项写入 `uat.md`。每个用户可见新能力、真实浏览器路径、插件交互、发布后运行态路径必须有 UAT 项。机器测试只能作为支持证据。
 
-每条 UAT 项写明：覆盖能力、环境、操作步骤、期望结果、证据口径、当前状态。涉及本机浏览器/官网采集/插件回流/ERP 写入/Dify 发布生效的能力，必须有真实环境 UAT 项。决定不做的写 waiver。
+每条 UAT 项必须对齐矩阵里的用户动作链、下游成功判据、失败信号和不可替代证据。涉及本机浏览器/官网采集/插件回流/ERP 写入/Dify 发布生效的能力，必须有真实环境 UAT 项。决定不做的写 waiver。
 
 ### Blast Radius Guard
 
