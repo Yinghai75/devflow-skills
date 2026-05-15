@@ -28,7 +28,7 @@ metadata:
 - 提交前审查当前改动：使用 `--uncommitted`。
 - 审查单个已提交 commit：使用 `--commit <sha>`。
 - 审查一个分支或多 commit aggregate：使用 `--base <branch-or-sha>`。
-- 覆盖漏实现审查：使用 `coverage review mode`，通常在 aggregate review 或 `$df-execute` 收口前执行；目标可以是 `--base <branch-or-sha>` 或当前 feature 未提交 diff。
+- 覆盖漏实现审查：使用 `coverage review mode`，通常在 aggregate review 或 `$df-execute` 收口前执行；该模式必须走带完整 instructions 的 prompt-driven review，不能退化成默认 target diff review。
 - 若已对某个历史 commit 做了 follow-up fix，下一轮复审必须切到 aggregate 目标（通常 `--base <base>` 或 `--uncommitted`），不要继续审原始 SHA，否则会重复报已由后续 commit 修掉的问题。
 
 ## 模型设置
@@ -54,15 +54,22 @@ metadata:
 
 每轮都必须先把本轮审查意图写入同目录的 `instructions.md`。该文件是审查证据和人工上下文，不等于一定会作为 CLI prompt 传入。
 
-当前 Codex CLI 0.130.0 的 `codex exec review` 在 help 中显示可用 `[PROMPT]` / `-` 从 stdin 读取，但实测 target review（`--uncommitted`、`--base`、`--commit`）不能稳定搭配自定义 prompt 或 stdin。DevFlow 自动 review 一律按 target 默认 review 形态执行，不给额外 PROMPT，不用 `- < instructions.md`。
+当前 Codex CLI 0.130.0 的 `codex exec review` 在 help 中显示可用 `[PROMPT]` / `-` 从 stdin 读取，但实测 target review（`--uncommitted`、`--base`、`--commit`）不能稳定搭配自定义 prompt 或 stdin。因此 DevFlow 分两种命令形态：
 
-执行形态：
+- 普通 code review：按 target 默认 review 形态执行，不给额外 PROMPT，不用 `- < instructions.md`。
+- coverage review mode：必须把完整 `instructions.md` 通过 PROMPT/stdin 传入，且不得同时传 `--uncommitted` / `--base` / `--commit`。目标范围、base/commit/uncommitted、允许检查的矩阵行、UAT/checklist/evidence 路径和输出格式都写进 `instructions.md`，由模型按 instructions 读取文件和 diff。若该形态失败，写 `review_loop_status: tooling_blocked`，不得 fallback 到默认 target diff review 冒充 coverage PASS。
+
+普通 code review 执行形态：
 
 `codex exec review <target flags> <model flags> -c 'model_reasoning_effort="<effort>"' --title "<短上下文>" --json -o <round.md> > <round.jsonl>`
 
-`--title` 只放短上下文，例如 feature id、checklist item 或 UAT issue id；完整 P0/P1/P2 分流、scope、coverage rows、允许写入路径和 q1/q2 回归面仍写入 `instructions.md`，并在解析 findings 时作为人工判定依据。
+coverage review mode 执行形态：
 
-若误用了 PROMPT/stdin 导致 CLI 报错，必须保留失败命令的 stderr 为 `tooling-retry.log`，随后用无 PROMPT/stdin 的 target 默认形态重跑。只有重跑产出有效 `round.md` 时，本轮才能继续解析；否则写 `review_loop_status: tooling_blocked`。
+`codex exec review <model flags> -c 'model_reasoning_effort="<effort>"' --title "<短上下文>-coverage" --json -o <round.md> - < <instructions.md> > <round.jsonl>`
+
+`--title` 只放短上下文，例如 feature id、checklist item 或 UAT issue id；普通 code review 的完整 P0/P1/P2 分流、scope、允许写入路径和 q1/q2 回归面仍写入 `instructions.md`，并在解析 findings 时作为人工判定依据。coverage review mode 的矩阵行、scope、UAT/checklist/evidence 路径和 per-row 输出要求必须写入 prompt；没有成功传入 prompt 的 coverage run 一律无效。
+
+普通 code review 若误用了 PROMPT/stdin 导致 CLI 报错，必须保留失败命令的 stderr 为 `tooling-retry.log`，随后用无 PROMPT/stdin 的 target 默认形态重跑。只有重跑产出有效 `round.md` 时，本轮才能继续解析；否则写 `review_loop_status: tooling_blocked`。coverage review mode 不能使用这条重跑降级路径；prompt-driven coverage run 失败时直接按 `tooling_blocked` 处理。
 
 若当前 shell/终端不适合保存 JSONL，至少必须保留 `-o <round.md>`；不能让 review 只输出到聊天上下文。
 
