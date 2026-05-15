@@ -145,7 +145,7 @@ When `df-plan` continues from `devflow/roadmap.md`, status priority is `下一�
 
 ### Runtime Helper And Issue Compaction
 
-`runtime/devflow_cli.py` is the published deterministic helper source for this repository; the local runtime copy lives at `~/.codex/local/devflow/`. The `df-uat` issue compaction gate is handled by `compact-issues`, which moves history into feature-local `evidence/` and leaves `history_ref` in the active `issues.yaml`.
+`runtime/devflow_cli.py` is the published deterministic helper source for this repository; the local runtime copy lives at `~/.codex/local/devflow/`. The `df-uat` start-of-session and pre-registration compaction gate is handled by `compact-issues`, which moves closed/deferred issues and legacy `REVIEW-*` history into feature-local `evidence/` while the active `issues.yaml` keeps only the current work set and `history_ref`.
 
 ### Layered Codebase Map
 
@@ -188,6 +188,7 @@ If no evidence is found, the agent can only investigate or add probes. Mock test
 - split by user-visible failure surface;
 - deduplicate, reopen, or register issues;
 - update `issues.yaml`, `uat.md`, `handoff.md`, and `state.yaml`;
+- compact oversized active `issues.yaml` at session start and before registration, then deduplicate against both active `history_ref` entries and evidence history files;
 - stop after recording when the user says to only record, only read, or not fix yet.
 
 Only after the full feedback round is captured may the agent choose one explicit issue id and enter `df-fix`.
@@ -201,7 +202,7 @@ Only after the full feedback round is captured may the agent choose one explicit
 - **high-risk-fix**: Dify, plugin, Broker, `nas-agent`, `erp-executor`, containers, release paths, or real runtime behavior. It defaults to investigation until a narrow reason is written.
 - **integration-debug**: 3+ live components or repeated multi-hop failures. Add probes and read runtime snapshots first, then downgrade after locating one breakpoint.
 
-Before code changes, `fix_lane`, `q1_causal_chain`, `q2_regression_list`, and `q3_platform_assumptions` must be persisted. Every fix attempt needs a git checkpoint. Stop-loss writes `doom_loop_breaker` and requires the user to choose between returning to `df-plan` or continuing probe-based diagnosis.
+Before code changes, `fix_lane`, `q1_causal_chain`, `q2_regression_list`, and `q3_platform_assumptions` must be persisted. Long diagnosis, review, and rework timelines go into `evidence/` or `handoff.md`; `issues.yaml` keeps only the current summary, status, retest marker, latest evidence path, and `history_ref`. Final replies start with a plain-language status; local/remote release and UAT readiness are mandatory only for tasks that involve release, runtime, or UAT, while toolchain, skill, docs, or read-only review tasks should say they do not involve business release/UAT and give the next step. Every fix attempt needs a git checkpoint. Stop-loss writes `doom_loop_breaker` and requires the user to choose between returning to `df-plan` or continuing probe-based diagnosis.
 
 ### Sub-Agent Dispatch
 

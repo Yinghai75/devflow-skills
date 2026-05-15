@@ -145,7 +145,7 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 
 ### Runtime helper 与 issue 压缩
 
-`runtime/devflow_cli.py` 是本仓库发布的确定性 helper 正本；本机副本位于 `~/.codex/local/devflow/`。`df-uat` 的 issue 分层硬阻断由 `compact-issues` 执行，历史内容迁移到 feature-local `evidence/`，活跃 `issues.yaml` 保留 `history_ref`。
+`runtime/devflow_cli.py` 是本仓库发布的确定性 helper 正本；本机副本位于 `~/.codex/local/devflow/`。`df-uat` 开始阶段和登记 issue 前的分层硬阻断由 `compact-issues` 执行，已关闭/延后 issue 和 legacy `REVIEW-*` 历史迁移到 feature-local `evidence/`，活跃 `issues.yaml` 只保留当前工作集和 `history_ref`。
 
 ### 分层 codebase map
 
@@ -188,6 +188,7 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 - 拆成用户可见失败面。
 - 去重、重开或登记 issue。
 - 同步更新 `issues.yaml`、`uat.md`、`handoff.md`、`state.yaml`。
+- 开始阶段和登记前先压缩过大的活跃 `issues.yaml`，查重同时读取 `history_ref` 与 evidence 历史文件。
 - 用户说“只记录”“先只读”“不要修”时，记录后停下。
 
 只有本轮反馈全部入账后，才允许选择一个明确 issue id 进入 `df-fix`。
@@ -201,7 +202,7 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 - **high-risk-fix**：跨 Dify、插件、Broker、`nas-agent`、`erp-executor`、容器、发布链路或真实运行态；默认只能调查，写明收窄理由后才允许单点补丁。
 - **integration-debug**：跨 3+ 运行中组件或同一 issue 多轮多环节仍未关闭；只加探针和读运行态快照，定位单一断点后再降级修复。
 
-改代码前必须落盘 `fix_lane`、`q1_causal_chain`、`q2_regression_list`、`q3_platform_assumptions`。每轮修复尝试后必须 git checkpoint；命中止损时写 `doom_loop_breaker`，再由用户选择回 `df-plan` 或继续探针定位。
+改代码前必须落盘 `fix_lane`、`q1_causal_chain`、`q2_regression_list`、`q3_platform_assumptions`，长诊断和 review/rework 流水写入 `evidence/` 或 `handoff.md`，`issues.yaml` 只保留当前摘要、状态、复测标记、最新证据路径和 `history_ref`。最终回复先给人话状态；只有任务涉及发布、运行态或 UAT 时才强制说明本地/远端发布与 UAT 可行性，工具链、skill、文档或只读评估任务只说明“不涉及业务发布/UAT”和下一步。每轮修复尝试后必须 git checkpoint；命中止损时写 `doom_loop_breaker`，再由用户选择回 `df-plan` 或继续探针定位。
 
 ### 子代理分派
 

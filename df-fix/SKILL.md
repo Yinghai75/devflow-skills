@@ -22,6 +22,7 @@ metadata:
 
 ### 防钻空子
 - `q1/q2/q3` 必须写入持久记录（`issues.yaml`、`handoff.md`、`uat.md` 或 evidence），每轮必须针对本轮 RED 更新；fast-fix 可省 q2/q3，验证失败升级前必须补齐。
+- `q1/q2/q3` 在 `issues.yaml` 只保留当前失败面摘要、状态、最新证据路径和 `history_ref`；长诊断、完整验证、rework、review 处理流水必须写入 `evidence/` 或 `handoff.md`，不要塞回活跃 issue。
 - 改代码前诊断字段 + `fix_lane` 必须已落盘；缺任一项只能调查不能改实现文件。
 
 | 车道 | 适用条件 | 动作 |
@@ -93,13 +94,14 @@ metadata:
 8. 修复后先复跑触发 issue 的同一真实步骤；跨组件链路还必须复跑不可替代 runtime gate，再按回归面清单跑最小自动测试、构建和对应门禁；代码改动关闭 issue 前必须调用 `$df-review-loop --uncommitted` 审查本轮修复 diff。
 8b. 跨组件 issue 验证结论必须标注每个环节是运行态已验证还是仅代码已改；只有代码证据时不得写“已修复”，只能写“代码已改，运行态未验证”。凡是用户可见回归（q2 契约中列出的）在最终载体中出现，直接判 RED。
 9. 提交前确认已通过 UAT 的代码不受影响；有专用门禁时必须引用其 pass/fail 结果；`$df-review-loop` 的 P0/P1 未处理或无 waiver 时不得关闭 issue。
-10. 更新 `issues.yaml`、`uat.md`、`state.yaml`、`handoff.md`，证据区分真实复现/运行态验证、自动测试/门禁、回归面覆盖、验证画像是否一致；不得把未覆盖的面写成已通过。若结论不是“可以 UAT”，必须在记录中补 `uat_unlock_next_steps` 或等价段落，写清进入 UAT 还差的最小动作、执行主体、样本/命令/页面、通过标准和阻断原因；禁止只写“不建议 UAT”“运行态未验证”“待复测”这类不可执行结论。
+10. 更新 `issues.yaml`、`uat.md`、`state.yaml`、`handoff.md`，证据区分真实复现/运行态验证、自动测试/门禁、回归面覆盖、验证画像是否一致；不得把未覆盖的面写成已通过。`issues.yaml` 只写当前失败面摘要、状态、最新证据路径、复测标记和 `history_ref`；完整命令输出、review 处理、rework 时间线和长证据清单写入 `evidence/` 或 `handoff.md`。若结论不是“可以 UAT”，必须在记录中补 `uat_unlock_next_steps` 或等价段落，写清进入 UAT 还差的最小动作、执行主体、样本/命令/页面、通过标准和阻断原因；禁止只写“不建议 UAT”“运行态未验证”“待复测”这类不可执行结论。
 11. **每轮修复尝试后必须 git checkpoint**，不等 issue 关闭：通过则原子提交 `fix(<issue-id>): <一句话描述>`；未通过但已改代码则 stash/WIP commit 并把 hash 写入 `handoff.md`；止损触发则立即 checkpoint；提交前只暂存该 issue 相关文件；禁止连续两轮修复之间没有任何 checkpoint。
 11b. git checkpoint 后，检查本轮修改路径是否命中 `codebase_map/OVERVIEW.md` 卡片索引中的模块；命中则增量刷新对应模块卡片。
 11c. 本轮改动涉及模块接口、状态归属或职责边界时，同步更新 `docs/design/system_framework_truth.md` 或对应 module_map。
 11d. 修复改变了业务行为时，更新 `devflow/shared/golden_sets/` 中受影响的样本。
-11e. 关闭 issue 前评估：本 issue 揭示的失败模式是否可被机器检测（自动测试、contract gate、golden sample、lint 规则）。可前移时，在 `issues.yaml` 的 `regression_guard_contract` 字段记录新增的 gate 类型和路径引用，优先新增 gate 而非依赖人工 UAT 防回归；不可前移时写明原因（如只能在真实环境暴露）。
-12. 最终回复必须先用人话给状态结论，再列证据。第一段固定回答：本地发布是否完成、远端发布是否完成、现在能否直接 UAT、还缺什么；禁止先堆命令、hash、测试清单或 DevFlow 术语。随后再写 UAT 状态（`可以 UAT` / `暂不建议 UAT` / `只完成代码验证`），紧跟对象限定（业务故障 / 门禁 / 运行态 / 文档）。可以 UAT 时写 1-3 条用户具体操作和期望结果。只要不是“可以 UAT”，必须紧跟一个“要到可以 UAT 还差什么”清单，逐条写明：
+11e. 关闭 issue 前评估：本 issue 揭示的失败模式是否可被机器检测（自动测试、contract gate、golden sample、lint 规则）。可前移时，在 `issues.yaml` 的 `regression_guard_contract` 字段记录新增 gate 的文件路径 + PASS/FAIL 结论，优先新增 gate 而非依赖人工 UAT 防回归；不可前移时写明原因（如只能在真实环境暴露）。
+11f. 关闭 issue 时，若仍等用户复测，必须写 `needs_retest: true` 或 `retest_status: pending`，并只保留复测入口、样本和最新证据路径；不要把完整修复流水账塞回 active issue。关闭且复测通过后，下一次 `$df-uat` 或登记 issue 前必须先用 `uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues` 压缩成 stub。
+12. 最终回复必须先用人话给状态结论，再列证据，禁止先堆命令、hash、测试清单或 DevFlow 术语。第一段按任务类型动态表达：涉及业务发布、远端发布、UAT 修复或运行态验证时，必须明确本地发布是否完成、远端发布是否完成、现在能否直接 UAT、还缺什么；不涉及发布/UAT 的工具链、skill、文档、helper 或只读评估任务，不要套用发布表头，只需明确“不涉及业务发布/UAT”以及当前已完成事项和可继续的下一步。随后再写 UAT 状态（`可以 UAT` / `暂不建议 UAT` / `只完成代码验证` / `不适用`），紧跟对象限定（业务故障 / 门禁 / 运行态 / 文档 / 工具链）。可以 UAT 时写 1-3 条用户具体操作和期望结果。只要任务涉及 UAT 且结论不是“可以 UAT”，必须紧跟一个“要到可以 UAT 还差什么”清单，逐条写明：
    - `谁执行`：agent 继续执行、用户手动操作，或需要用户授权/登录。
    - `做什么`：具体命令、页面动作、样本输入、发布/重载/刷新步骤。
    - `通过标准`：必须看到的会话导出字段、页面状态、日志、hash、测试结果或用户可见结果。

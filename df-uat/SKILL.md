@@ -15,23 +15,24 @@ metadata:
 
 1. 读取 active feature。
 2. 读取 `uat.md`、`acceptance.md`、`validation.md`、`handoff.md`，提取待人工验收项、已完成证据、waiver 和当前阻塞项。
-3. 先做 UAT 覆盖审计，再按顺序引导用户执行 UAT。每次只给 1-3 个明确操作步骤，并说明期望看到的结果。
-4. 若验收项涉及真实浏览器、真实客户端、本机插件、外部站点、登录态、设备态、账号态或本地缓存/会话，先从已有文档和证据提取"验证画像"：
+3. 开始 UAT 前先检查活跃 `issues.yaml`：超过 80 行，或任一 issue 超过 50 行，必须先运行 `uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`，校验 YAML 可解析，并确认下一个 UAT id 不会与活跃或历史 id 冲突。
+4. 先做 UAT 覆盖审计，再按顺序引导用户执行 UAT。每次只给 1-3 个明确操作步骤，并说明期望看到的结果。
+5. 若验收项涉及真实浏览器、真实客户端、本机插件、外部站点、登录态、设备态、账号态或本地缓存/会话，先从已有文档和证据提取"验证画像"：
    - 入口路径：用户如何进入该能力，是手动打开、系统跳转、脚本拉起还是页面内继续操作。
    - 客户端画像：浏览器/客户端品牌、channel、是否真实用户窗口。
    - 会话画像：是否复用用户既有 profile、既有登录态、既有 cookie/storage、既有插件状态。
    - 环境画像：目标环境、网络位置、样本类型、是否真实账号/真实站点。
    - 只有画像缺失时，才补问用户或在 `uat.md`/证据中显式记缺口。
-5. 根据用户反馈判断：
+6. 根据用户反馈判断：
    - 通过：记录该项已通过；若还有未完成 UAT 项，直接提示下一项的 1-3 个操作步骤和期望结果。
    - 不通过：提取 issue 标题、现象、严重度；严重度只能是 `low`、`medium`、`high`、`critical`。
    - 信息不足：要求用户补充最小必要证据，例如截图、页面文字、控制台错误、请求响应或具体复现步骤。
    - 越界试测：按"非当前 UAT 项反馈"处理。
-6. 需要记录 issue 前，必须先执行"Issue 去重与重开规则"；只有确认不是既有 issue 的同一用户可见问题，才运行：
-   `uv run python /Users/yinghai/.codex/local/devflow/devflow_cli.py --repo <repo> uat "<标题>" "<现象>" --severity <low|medium|high|critical>`
-7. 回复生成的 issue id，并继续完成本轮用户反馈 intake；没有 issue id 时禁止转修。
-8. 本轮反馈全部登记、去重、重开和落盘完成后，按"Issue 后续判定"明确是进入 `$df-fix <issue-id>`，还是继续下一项 UAT。
-9. 若判定需要进入 `$df-fix <issue-id>`，必须立即读取 `df-fix` skill 并按其流程继续；禁止在 `$df-uat` 语境下直接修改实现文件。
+7. 需要记录 issue 前，必须先执行"Issue 去重与重开规则"；只有确认不是既有 issue 的同一用户可见问题，才运行：
+   `uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> uat "<标题>" "<现象>" --severity <low|medium|high|critical>`
+8. 回复生成的 issue id，并继续完成本轮用户反馈 intake；没有 issue id 时禁止转修。
+9. 本轮反馈全部登记、去重、重开和落盘完成后，按"Issue 后续判定"明确是进入 `$df-fix <issue-id>`，还是继续下一项 UAT。
+10. 若判定需要进入 `$df-fix <issue-id>`，必须立即读取 `df-fix` skill 并按其流程继续；禁止在 `$df-uat` 语境下直接修改实现文件。
 
 脚本会拒绝非法严重度，不要用 `urgent`、`blocker` 等临时值绕过枚举。
 
@@ -45,7 +46,8 @@ metadata:
 - 同一失败面已有 closed issue 且复测失败：重开或追加 `regression`，禁止新建。
 - 只有用户可见失败面独立时才允许新建。
 - 拆分混合 issue 时必须写明 `split_from` / `related_issue`。
-- 若 `issues.yaml` 是活跃上下文视图，必须同时查它声明的 `history_ref`、`evidence/*history*.yaml` 和 `evidence/*full*.yaml`，避免历史已关闭问题被重复新建。
+- 若 `issues.yaml` 是活跃上下文视图，必须同时查 active stub 的 `history_ref`、`evidence/*history*.yaml` 和 `evidence/*full*.yaml`，避免历史已关闭问题被重复新建。
+- `review-findings.yaml` 是 review finding 正本；新 review finding 不得写入 `issues.yaml`。遗留 `REVIEW-*` 只允许作为历史压缩对象迁移到 `evidence/`。
 - `issues.yaml` 中的 gate、investigation、regression_guard_contract 只写文件路径 + 通过/失败结论，不重新描述脚本内部判定逻辑。
 - 用户说"通过/正常"时，先确认对应 issue id；未确认时不得擅自关闭新 issue。
 - 标题写用户现象；技术细节写 `investigation`。
@@ -59,7 +61,7 @@ metadata:
 - 归档前必须确认历史文件可追溯原始 issue id、状态、关键证据和迁移时间；归档后在活跃 issue 写 `history_ref`。
 - 不得为了压缩而删除正式记录；只能迁移到 feature-local `evidence/` 或等价正式证据目录。
 - 新增或重开 issue 时，只在活跃 `issues.yaml` 写当前失败面和最新证据；旧轮次细节继续追加到历史文件或专门 evidence 文件。
-- 登记新 issue 前，如果活跃 `issues.yaml` 超过 80 行，或单个 issue 的历史超过 50 行，必须先做分层压缩再继续登记；这是硬阻断，不是建议。
+- `$df-uat` 开始阶段和登记新 issue 前，如果活跃 `issues.yaml` 超过 80 行，或单个 issue 的历史超过 50 行，必须先做分层压缩再继续；这是硬阻断，不是建议。
 - 分层压缩优先使用 helper：`uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`。
 - 分层后必须校验 YAML 可解析，并确认下一个 UAT id 不会与活跃或历史 id 冲突。
 

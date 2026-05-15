@@ -11,14 +11,18 @@ from zoneinfo import ZoneInfo
 
 
 BEIJING = ZoneInfo("Asia/Shanghai")
-ISSUE_ID_RE = re.compile(r"^  - id:\s*(UAT-\d{3,}(?:-R\d+)?)\s*$")
+ISSUE_ID_RE = re.compile(r"^  - id:\s*[\"']?([A-Za-z][A-Za-z0-9_-]*-\d{3,}(?:-R\d+)?)[\"']?\s*$")
 STATUS_RE = re.compile(r"^    status:\s*\"?([^\"\n]+)\"?\s*$")
 HISTORY_REF_RE = re.compile(r"^    history_ref:\s*(.+?)\s*$")
-KEEP_SCALAR_KEYS = {
+NEEDS_RETEST_RE = re.compile(r"^    needs_retest:\s*\"?([^\"\n]+)\"?\s*$")
+RETEST_STATUS_RE = re.compile(r"^    retest_status:\s*\"?([^\"\n]+)\"?\s*$")
+STUB_SCALAR_KEYS = {
     "id",
     "title",
     "severity",
     "status",
+}
+LEGACY_STUB_SCALAR_KEYS = STUB_SCALAR_KEYS | {
     "created_at",
     "description",
     "regression_of",
@@ -46,14 +50,11 @@ def compact_issues(feature: Path | str, max_issue_lines: int = 50) -> CompactIss
 
     compacted: list[str] = []
     output = ["issues:"]
-    history_ref = ""
     for block in blocks:
         if _is_compacted_stub(block):
             output.append(block.rstrip())
             continue
-        status = _issue_status(block)
-        should_compact = status in {"closed", "deferred"} or len(block.splitlines()) > max_issue_lines
-        if should_compact:
+        if _should_compact(block, max_issue_lines):
             compacted.append(block)
             continue
         output.append(block.rstrip())
@@ -62,13 +63,20 @@ def compact_issues(feature: Path | str, max_issue_lines: int = 50) -> CompactIss
         evidence_dir = feature / "evidence"
         evidence_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(BEIJING).strftime("%Y%m%d-%H%M%S")
-        history_path = evidence_dir / f"uat-compact-history-{stamp}.yaml"
+        history_path = evidence_dir / f"issue-compact-history-{stamp}.yaml"
         suffix = 1
         while history_path.exists():
             suffix += 1
-            history_path = evidence_dir / f"uat-compact-history-{stamp}-{suffix}.yaml"
+            history_path = evidence_dir / f"issue-compact-history-{stamp}-{suffix}.yaml"
         history_ref = str(history_path.relative_to(feature))
-        history_path.write_text("issues:\n" + "\n".join(compacted).rstrip() + "\n", encoding="utf-8")
+        history_path.write_text(
+            f'compacted_at: "{datetime.now(BEIJING).isoformat()}"\n'
+            'source: "issues.yaml"\n'
+            "issues:\n"
+            + "\n".join(compacted).rstrip()
+            + "\n",
+            encoding="utf-8",
+        )
         output = ["issues:"]
         for block in blocks:
             if block in compacted:
@@ -106,7 +114,7 @@ def _issue_status(block: str) -> str:
     for line in block.splitlines():
         match = STATUS_RE.match(line)
         if match:
-            return match.group(1).strip()
+            return _scalar_value(match.group(1)).lower()
     return "open"
 
 
@@ -118,6 +126,32 @@ def _history_ref(block: str) -> str:
     return ""
 
 
+def _scalar_value(value: str) -> str:
+    return value.strip().strip('"').strip("'")
+
+
+def _pending_retest(block: str) -> bool:
+    for line in block.splitlines():
+        needs_match = NEEDS_RETEST_RE.match(line)
+        if needs_match and _scalar_value(needs_match.group(1)).lower() == "true":
+            return True
+        retest_match = RETEST_STATUS_RE.match(line)
+        if retest_match and _scalar_value(retest_match.group(1)).lower() == "pending":
+            return True
+    return False
+
+
+def _should_compact(block: str, max_issue_lines: int) -> bool:
+    if _pending_retest(block):
+        return False
+    status = _issue_status(block)
+    if status in {"closed", "deferred"}:
+        return True
+    if len(block.splitlines()) > max_issue_lines:
+        return True
+    return False
+
+
 def _is_compacted_stub(block: str) -> bool:
     if not _history_ref(block):
         return False
@@ -126,7 +160,7 @@ def _is_compacted_stub(block: str) -> bool:
             return False
         if line.startswith("    "):
             key = line.strip().split(":", 1)[0]
-            if key not in KEEP_SCALAR_KEYS and key != "history_ref":
+            if key not in LEGACY_STUB_SCALAR_KEYS and key != "history_ref":
                 return False
     return True
 
@@ -140,7 +174,7 @@ def _compact_stub(block: str, history_ref: str) -> str:
         if not line.startswith("    ") or line.startswith("      "):
             continue
         key = line.strip().split(":", 1)[0]
-        if key in KEEP_SCALAR_KEYS and key != "history_ref":
+        if key in STUB_SCALAR_KEYS and key != "history_ref":
             lines.append(line)
     lines.append(f'    history_ref: "{history_ref}"')
     return "\n".join(lines)

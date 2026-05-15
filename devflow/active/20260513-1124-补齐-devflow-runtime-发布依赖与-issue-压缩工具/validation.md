@@ -17,6 +17,11 @@
 - `evidence/manifest.json`：`devflow-runtime-unit` PASS；`git-diff-check` PASS。
 - Review fix：`compact-issues` 对已有 `history_ref` 幂等；`add_uat_issue` 写 YAML 安全标量；`df-uat` helper 路径改为 `~/.codex/local/devflow/devflow_cli.py`。
 - Review fix 2：只跳过真正 compact stub；带 `history_ref` 但新增长 investigation 的 active issue 仍会压缩。
+- Review fix 3：兼容旧版 compact stub；带 `created_at`、`description`、`regression_of` 等一层 legacy 标量和 `history_ref` 的 stub 重跑不会再次归档，新生成 stub 仍保持精简字段。
+- `uv run python runtime/tests/test_devflow_cli.py`：PASS，40 tests。
+- `uv run python /Users/yinghai/.codex/local/devflow/tests/test_devflow_cli.py`：PASS，40 tests。
+- `uv run python /Users/yinghai/.codex/local/devflow/devflow_cli.py --repo /Users/yinghai/SynologyDrive/codex/devflow run-gate devflow-runtime-unit`：PASS，日志 `evidence/devflow-runtime-unit-20260515-154715.log`。
+- `uv run python /Users/yinghai/.codex/local/devflow/devflow_cli.py --repo /Users/yinghai/SynologyDrive/codex/devflow run-gate git-diff-check`：PASS，日志 `evidence/git-diff-check-20260515-154715.log`。
 
 ## Blast Radius Guard
 

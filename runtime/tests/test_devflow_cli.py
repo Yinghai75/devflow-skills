@@ -518,8 +518,65 @@ tooling_blocked: true
         self.assertEqual(1, result.compacted_count)
         self.assertIsNotNone(result.history_path)
         self.assertIn("history_ref:", issues)
+        self.assertNotIn("已关闭但历史很长", issues)
         self.assertNotIn("step: 54", issues)
         self.assertEqual("UAT-011", issue.issue_id)
+
+    def test_compact_issues_archives_closed_review_issue(self):
+        feature = create_feature(self.repo, "压缩 review 历史", "standard", "闭环 UAT", [], [])
+        (feature / "issues.yaml").write_text(
+            """issues:
+  - id: REVIEW-001
+    title: "旧 review finding"
+    severity: medium
+    status: closed
+    description: "review 流水账不应留在活跃 UAT 视图"
+    validation:
+      - command: "uv run pytest"
+  - id: UAT-001
+    title: "当前失败面"
+    severity: high
+    status: open
+    description: "仍需处理"
+""",
+            encoding="utf-8",
+        )
+
+        result = compact_issues(feature)
+        issues = (feature / "issues.yaml").read_text(encoding="utf-8")
+        history = result.history_path.read_text(encoding="utf-8") if result.history_path else ""
+
+        self.assertEqual(1, result.compacted_count)
+        self.assertIn("  - id: REVIEW-001", issues)
+        self.assertIn("history_ref:", issues)
+        self.assertNotIn("review 流水账", issues)
+        self.assertIn("review 流水账", history)
+        self.assertIn("  - id: UAT-001", issues)
+        self.assertIn("仍需处理", issues)
+
+    def test_compact_issues_next_id_reads_active_and_history(self):
+        feature = create_feature(self.repo, "历史 id 去重", "standard", "闭环 UAT", [], [])
+        (feature / "issues.yaml").write_text(
+            """issues:
+  - id: UAT-001
+    title: "旧失败面"
+    severity: high
+    status: closed
+    description: "已关闭"
+  - id: UAT-002
+    title: "当前失败面"
+    severity: medium
+    status: open
+    description: "仍需处理"
+""",
+            encoding="utf-8",
+        )
+
+        compact_issues(feature)
+        issue = add_uat_issue(feature, "新失败面", "新问题", severity="low")
+
+        self.assertEqual("UAT-003", issue.issue_id)
+        self.assertEqual([1, 2, 3], existing_uat_issue_ids(feature))
 
     def test_compact_issues_is_idempotent_for_existing_history_ref(self):
         feature = create_feature(self.repo, "重复压缩", "standard", "闭环 UAT", [], [])
@@ -551,6 +608,44 @@ tooling_blocked: true
         self.assertEqual(0, result.compacted_count)
         self.assertIsNone(result.history_path)
         self.assertIn("preserved", history.read_text(encoding="utf-8"))
+        self.assertEqual(1, len(list((feature / "evidence").glob("*.yaml"))))
+
+    def test_compact_issues_keeps_legacy_stub_with_extra_scalars(self):
+        feature = create_feature(self.repo, "旧版 stub 兼容", "standard", "闭环 UAT", [], [])
+        (feature / "evidence").mkdir()
+        history = feature / "evidence" / "uat-001-full-history.yaml"
+        history.write_text(
+            """issues:
+  - id: UAT-001
+    title: "旧失败面"
+    status: closed
+    investigation:
+      - step: preserved
+""",
+            encoding="utf-8",
+        )
+        (feature / "issues.yaml").write_text(
+            """issues:
+  - id: UAT-001
+    title: "旧失败面"
+    severity: high
+    status: closed
+    created_at: "2026-05-13 13:13:13 CST"
+    description: "旧版 compact stub 保留的一层标量"
+    regression_of: UAT-000
+    history_ref: "evidence/uat-001-full-history.yaml"
+""",
+            encoding="utf-8",
+        )
+
+        result = compact_issues(feature)
+        issues = (feature / "issues.yaml").read_text(encoding="utf-8")
+
+        self.assertEqual(0, result.compacted_count)
+        self.assertIsNone(result.history_path)
+        self.assertIn("created_at:", issues)
+        self.assertIn("description:", issues)
+        self.assertIn('history_ref: "evidence/uat-001-full-history.yaml"', issues)
         self.assertEqual(1, len(list((feature / "evidence").glob("*.yaml"))))
 
     def test_compact_issues_recompacts_oversized_active_issue_with_history_ref(self):
@@ -589,6 +684,34 @@ tooling_blocked: true
         self.assertNotIn("reopened-54", issues)
         self.assertIn("uat-001-full-history.yaml", result.history_path.read_text(encoding="utf-8"))
         self.assertIn("original", original_history.read_text(encoding="utf-8"))
+
+    def test_compact_issues_keeps_pending_retest_issue_active(self):
+        feature = create_feature(self.repo, "复测 pending 保留", "standard", "闭环 UAT", [], [])
+        (feature / "issues.yaml").write_text(
+            """issues:
+  - id: UAT-001
+    title: "刚关闭待复测"
+    severity: high
+    status: closed
+    needs_retest: true
+    description: "用户还没复测，不能压成历史 stub"
+  - id: UAT-002
+    title: "也待复测"
+    severity: medium
+    status: closed
+    retest_status: pending
+    description: "仍需用户确认"
+""",
+            encoding="utf-8",
+        )
+
+        result = compact_issues(feature)
+        issues = (feature / "issues.yaml").read_text(encoding="utf-8")
+
+        self.assertEqual(0, result.compacted_count)
+        self.assertIsNone(result.history_path)
+        self.assertIn("用户还没复测", issues)
+        self.assertIn("仍需用户确认", issues)
 
     def test_failed_gate_blocks_accept(self):
         feature = create_feature(self.repo, "失败门禁", "high-risk", "改状态机", [], [])
