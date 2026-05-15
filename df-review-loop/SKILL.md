@@ -35,9 +35,10 @@ metadata:
 
 发布默认不硬编码本机模型别名。模型和 effort 选择顺序：
 
-1. 若项目在 `devflow/shared/review_config.yaml` 或环境变量 `DEVFLOW_REVIEW_MODEL`、`DEVFLOW_REVIEW_EFFORT` 中声明 review 配置，优先使用，并在 `review-findings.yaml` 记录来源。
-2. 若没有项目配置，默认继承当前 Codex 配置，只显式设置 `model_reasoning_effort="high"`。
-3. 本机存在 `codex-auto-review` 这类专用模型别名时可以使用，但必须记录为 local override；不得把该别名写成跨机器默认。
+1. 若环境变量 `DEVFLOW_REVIEW_MODEL`、`DEVFLOW_REVIEW_EFFORT` 存在，作为全局默认优先使用，并在 `review-findings.yaml` 记录来源。
+2. 若项目在 `devflow/shared/review_config.yaml` 声明 review 配置，作为项目默认使用，并在 `review-findings.yaml` 记录来源。
+3. 若没有上述配置，默认继承当前 Codex 配置，只显式设置 `model_reasoning_effort="high"`。
+4. 本机存在 `codex-auto-review` 这类专用模型别名时可以使用，但必须记录为 local override；不得把该别名写成跨机器默认。
 
 降级与升级：
 
