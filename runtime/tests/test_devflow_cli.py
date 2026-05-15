@@ -367,6 +367,136 @@ tooling_blocked: true
 
         self.assertTrue(result.ok)
 
+    def test_accept_allows_audited_out_of_scope_followup_p1(self):
+        feature = create_feature(self.repo, "后置 review", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        self.write_review_round(feature)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: pass
+rounds: []
+findings:
+  - priority: P1
+    summary: "scope 外 P1"
+    status: open
+    scope_decision: out_of_scope_followup
+    non_blocking_reason: "不影响当前 checklist"
+    followup_owner: "roadmap"
+    no_overlap_evidence: "零文件/接口/状态/门禁交叉"
+waivers: []
+manual_review: []
+tooling_blocked: false
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertTrue(result.ok)
+
+    def test_accept_blocks_out_of_scope_followup_without_audit_fields(self):
+        feature = create_feature(self.repo, "后置缺证据", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        self.write_review_round(feature)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: pass
+rounds: []
+findings:
+  - priority: P1
+    summary: "scope 外 P1"
+    status: open
+    scope_decision: out_of_scope_followup
+waivers: []
+manual_review: []
+tooling_blocked: false
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("review-findings.yaml 存在未处理 P0/P1", result.messages)
+
+    def test_accept_blocks_out_of_scope_manual_review_without_audit_fields(self):
+        feature = create_feature(self.repo, "后置人工缺证据", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        self.write_review_round(feature)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: pass
+rounds: []
+findings:
+  - priority: P1
+    summary: "scope 外 P1"
+    status: open
+    scope_decision: out_of_scope_followup
+waivers: []
+manual_review:
+  - finding_summary: "scope 外 P1"
+    summary: "人工确认后置，但缺少无交叉证据"
+tooling_blocked: false
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("review-findings.yaml 存在未处理 P0/P1", result.messages)
+
+    def test_accept_allows_out_of_scope_audit_fields_in_manual_review(self):
+        feature = create_feature(self.repo, "后置人工有证据", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        self.write_review_round(feature)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: pass
+rounds: []
+findings:
+  - priority: P1
+    summary: "scope 外 P1"
+    status: open
+    scope_decision: independent_followup
+waivers: []
+manual_review:
+  - finding_summary: "scope 外 P1"
+    summary: "人工确认后置"
+    non_blocking_reason: "不影响当前交付"
+    followup_owner: "roadmap"
+    no_overlap_evidence: "零文件/接口/状态/门禁交叉"
+tooling_blocked: false
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertTrue(result.ok)
+
+    def test_accept_blocks_uncertain_scope_even_with_manual_review(self):
+        feature = create_feature(self.repo, "不确定 scope", "standard", "修复 review finding", [], [])
+        self.complete_default_checklist(feature)
+        self.write_review_round(feature)
+        (feature / "review-findings.yaml").write_text(
+            """review_loop_status: pass
+rounds: []
+findings:
+  - priority: P1
+    summary: "不确定 scope P1"
+    status: open
+    scope_decision: uncertain_scope
+waivers: []
+manual_review:
+  - finding_summary: "不确定 scope P1"
+    summary: "人工记录但 scope 仍不确定"
+tooling_blocked: false
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("review-findings.yaml 存在未处理 P0/P1", result.messages)
+
     def test_accept_does_not_apply_unrelated_waiver_to_open_p1(self):
         feature = create_feature(self.repo, "无关 waiver", "standard", "修复 review finding", [], [])
         self.complete_default_checklist(feature)

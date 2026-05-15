@@ -116,7 +116,13 @@ metadata:
 
 正式计划必须把用户可见能力拆成唯一的 `Capability Coverage Matrix`。不得再新增验证矩阵、关闭矩阵、额外 UAT 矩阵等并行事实源。
 
-每行必须包含：用户可见能力、用户动作链、下游成功判据、失败信号、实现项、validation、UAT 项、不可替代证据、waiver/残余风险。
+矩阵列按 feature 车道分级填写，低风险任务不得为了填满高风险列而扩大范围：
+
+- `fast`：必填用户可见能力、实现项；其余列可写 `N/A` 或 waiver。
+- `standard`：必填用户可见能力、实现项、validation、UAT 项；下游成功判据、失败信号、不可替代证据按风险填写，不适用时写明原因。
+- `high-risk`：每行必须包含用户可见能力、用户动作链、下游成功判据、失败信号、实现项、validation、UAT 项、不可替代证据、waiver/残余风险。
+
+矩阵只在 `df-plan` 或明确 architecture adjustment 回流时修改。`df-execute` / `df-fix` 发现矩阵缺口时，只能写入 `handoff.md` 的缺口建议并等待用户决定，不得在执行或修复过程中顺手补全局矩阵。
 
 高风险 UI、插件、真实浏览器、Dify、ERP、上传、粘贴、截图、PDF、Excel、附件等用户可见能力，不得合并成一个粗粒度 checklist 项；必须拆到能独立实现和独立验证的任务。
 

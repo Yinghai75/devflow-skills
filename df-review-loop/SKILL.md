@@ -71,7 +71,7 @@ review instructions 必须包含：
 
 coverage review mode 用来审“计划承诺的用户可见能力是否缺实现”，不等同于普通 diff code review。普通 code review PASS 不能代表 coverage PASS。
 
-该模式只审 `plan.md` 的 `Capability Coverage Matrix`。instructions 必须要求模型对照该矩阵、`uat.md`、`checklist.yaml`、当前 diff、`evidence/manifest.json` 和 `handoff.md` 查缺失能力，输出每个矩阵行的实现、validation、UAT 支撑、不可替代证据或 waiver。
+该模式只审 `plan.md` 的 `Capability Coverage Matrix`，但默认遵守调用方传入的 scope。`df-execute` 首次执行和归档前 aggregate review 可全量审；断点续跑只审当前和后续 `pending` / `in_progress` checklist 项对应的矩阵行；`df-fix` 只审当前 issue 的 `coverage_reference` 行。instructions 必须要求模型对照作用域内矩阵行、`uat.md`、`checklist.yaml`、当前 diff、`evidence/manifest.json` 和 `handoff.md` 查缺失能力，输出每个矩阵行的实现、validation、UAT 支撑、不可替代证据或 waiver。
 
 coverage review 的 P1 包括：
 
@@ -85,7 +85,9 @@ coverage finding 写入 `review-findings.yaml`，并标记 `mode: coverage`；�
 
 读 `round.md` 后建立本轮 finding 列表，至少记录 priority、file、line、summary、decision、round、source_path。
 
-- `P0` / `P1`：必须修复或写明为何是 false positive；不能带着未处理 P0/P1 提交或关闭 issue。
+- 每条 finding 在修复前必须先判定 `scope_decision`：`in_scope` / `out_of_scope_followup` / `independent_followup` / `uncertain_scope`。判定依据是调用方传入的 checklist item、UAT issue、coverage rows、允许写入路径、q1/q2 回归面和当前 diff；不得仅凭 priority 自动扩大修复范围。
+- `P0` / `P1`：仅当 `scope_decision: in_scope` 时必须修复或写明为何是 false positive；不能带着当前 scope 内未处理 P0/P1 提交或关闭 issue。
+- scope 外 P0/P1 不得在本轮自动修复：能证明独立时写 `out_of_scope_followup` / `independent_followup`，并记录非阻断理由、后续归属和与当前交付无交叉的证据；不能证明独立或影响当前交付安全时写 `uncertain_scope` 并暂停询问用户或回调用方止损。
 - `P2`：若是明确 bug、数据风险、测试缺口且在当前 scope 内，修；若是风格、偏好、架构扩 scope 或证据不足，写 waiver。
 - `P3` / 无优先级建议：默认不阻断，只记录。
 - 无法解析、超时、空输出或只有 JSONL 没有最终消息：判为 `tooling_blocked`，不能当 PASS。
@@ -98,7 +100,7 @@ finding 指纹使用 `priority + file + line + normalized_summary`。同一指�
 
 1. 运行 review 并落盘。
 2. 解析 findings，更新 `review-findings.yaml`。
-3. 对阻断项执行修复：`df-execute` 场景回 executor；`df-fix` 场景回当前 issue 的修复流程。
+3. 对 `scope_decision: in_scope` 的阻断项执行修复：`df-execute` 场景回 executor；`df-fix` 场景回当前 issue 的修复流程。scope 外或不确定 finding 只记录 follow-up、waiver 或暂停，不得进入自动修复。
 4. 跑调用方要求的 targeted validation 和门禁。
 5. 做 git checkpoint；提交信息可包含 `review` 或调用方 issue/checklist id。
 6. 重新选择正确 target 并复审。
@@ -119,7 +121,7 @@ review loop 内每轮修复都算作调用方（`df-execute` 或 `df-fix`）的�
 止损时必须同时写 `dependency_scope`：
 
 - `feature_blocking`：影响后续 checklist、UAT、公共合同、状态归属、数据流、共享抽象或部署边界；立即停整个 feature，根因不清回 `integration-debug`，根因清楚但需要重设计回 `$df-plan`。
-- `item_blocking_only`：仅适用于 `df-execute`；只阻断当前 checklist 项；在 `handoff.md` 写 `safe_to_continue_items`，其余已证明无依赖的项可继续。
+- `item_blocking_only`：仅适用于 `df-execute`；只阻断当前 checklist 项；必须证明当前阻断项与后续项没有文件、接口、状态、门禁或 UAT 动作链交叉，并在 `handoff.md` 写 `safe_to_continue_items`，其余已证明无依赖的项可继续。
 - `independent_followup`：属于后置跟进或独立增强；写入后续计划，不得冒充当前 feature 已闭合。
 
 止损后不得继续补丁式修复。若无法证明后续项独立，默认按 `feature_blocking` 处理。

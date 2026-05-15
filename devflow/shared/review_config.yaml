@@ -1,0 +1,3 @@
+# df-review-loop 模型配置
+# 优先级：环境变量 DEVFLOW_REVIEW_MODEL/DEVFLOW_REVIEW_EFFORT > 本文件 > 当前 Codex 默认
+effort: high

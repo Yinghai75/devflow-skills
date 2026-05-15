@@ -23,12 +23,13 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 
 ## coverage expansion gate
 
-改代码前必须交叉读取 `plan.md`、`checklist.yaml`、`validation.md`、`uat.md` 和 `handoff.md`，只核验 `plan.md` 中的 `Capability Coverage Matrix`。coverage verification 是对该矩阵的检查动作，不是新阶段，也不得生成额外验证或关闭矩阵。
+改代码前必须交叉读取 `plan.md`、`checklist.yaml`、`validation.md`、`uat.md` 和 `handoff.md`，只核验 `plan.md` 中的 `Capability Coverage Matrix`。coverage verification 是只读检查动作，不是新阶段，也不得生成额外验证或关闭矩阵。
 
-- 将每行按“用户可见能力 -> 用户动作链 -> 下游成功判据 -> 失败信号 -> 实现项 -> validation -> UAT 项 -> 不可替代证据 -> waiver/残余风险”核对，并把摘要写入 `handoff.md` 的 `coverage_snapshot` 区块。
-- 若用户可见能力、真实运行路径或 UAT 项没有对应 checklist 实现项，必须暂停执行并回到 `$df-plan`，或先补齐同一矩阵后再继续；不得把缺口留到 UAT 才发现。
-- 若 checklist 项只有烟雾测试或文档验证，无法覆盖对应用户路径，必须补 `validation.md` 或写 waiver；高风险核心路径没有验证支撑时不得开工。
-- 工作台初始空态、操作人绑定、附件上传、截图/PDF/Excel/粘贴/上传等能力，必须逐项看到 checklist、validation、UAT 三处对应项或 waiver。
+- 首次执行（`state.yaml` 从 `planned` / `ready_for_execute` 进入 `executing`，或 `handoff.md` 尚无 `coverage_snapshot`）：全量核验矩阵并把摘要写入 `handoff.md#coverage_snapshot`。高风险核心能力缺 checklist 实现项、validation、UAT 项或不可替代证据时，暂停执行并在 `handoff.md` 记录缺口，等待用户决定回 `$df-plan`、写 waiver 或拆后续 feature。
+- 恢复执行（断点续跑、`df-fix` 闭环后回到 execute、或已有 `coverage_snapshot`）：只核验当前和后续 `pending` / `in_progress` checklist 项对应的矩阵行；不得重新核验已完成项或不相关能力行。
+- 任何 coverage gate 都不得修改 `plan.md`、`checklist.yaml`、`validation.md` 或 `uat.md`。发现缺口只写 `handoff.md#coverage_gaps` 和状态结论，不得在执行期“先补齐同一矩阵”。
+- 若 checklist 项只有烟雾测试或文档验证，无法覆盖当前项对应用户路径，当前项不得开工；记录缺口并等待用户选择补计划、补 waiver 或调整 scope。
+- 工作台初始空态、操作人绑定、附件上传、截图/PDF/Excel/粘贴/上传等高风险能力，只在对应矩阵行进入当前或后续执行项时逐项核验 checklist、validation、UAT 三处对应项或 waiver。
 
 ## 流程
 
@@ -45,7 +46,7 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
    - 更新 `state.yaml` 的 `current_step`；高风险 RED 证据可写入 `red_evidence`。
    - 更新 `handoff.md`。
    - 若该项形成可独立机器验证（validation）的代码/文档改动，先跑受影响路径的 targeted test（单测/构建/lint），通过后调用 `$df-review-loop --uncommitted` 做提交前 AI review；review PASS 或阻断项已有明确 waiver 后，再检查 `git status --short`，只暂存相关文件并做一个小提交；不得混入无关改动或用户明确保留的不提交文件。
-   - 若 review-loop 返回 `dependency_scope`，先按 `feature_blocking` / `item_blocking_only` / `independent_followup` 分流，再决定是回 `$df-plan`、冻结当前项，还是继续执行后续无依赖项。
+   - 若 review-loop 返回 `dependency_scope`，先按 `feature_blocking` / `item_blocking_only` / `independent_followup` 分流，再决定是回 `$df-plan`、冻结当前项，还是继续执行后续无依赖项；只有已证明当前阻断项与后续项没有文件、接口、状态、门禁或 UAT 动作链交叉时，才允许 `item_blocking_only`。
    - 若机器验证（validation）失败但已改代码，先 `git stash push -m "df-execute-wip-<item-id>-<时间戳>"` 保存现场并把 hash 写入 `handoff.md`，再继续修复或回退。
    - 改了门禁脚本、状态码语义或接口契约后，检查 checklist/validation/handoff/issues 是否仍有重复描述；未清理前不得标记该项完成。
    - 禁止连续两个 checklist 项之间没有任何 git checkpoint。
@@ -63,12 +64,13 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 
 ## goal-backward verify gate
 
-宣称“可进入 `$df-uat`”前，必须从 feature 目标、Capability Coverage Matrix 和 `uat.md` 反推覆盖是否闭合：
+宣称“可进入 `$df-uat`”前，必须从 feature 目标、Capability Coverage Matrix 和 `uat.md` 反推覆盖是否闭合。该 gate 是只读断言，不得自动补实现、补 checklist 或修改矩阵：
 
 - 每个矩阵行都有代码或配置实现、运行态/机器验证证据、UAT 项或明确 waiver。
+- 覆盖闭合按 feature lane 判定：`fast` 行只要求用户可见能力和实现项闭合，validation/UAT/不可替代证据列为 `N/A` 时不算缺口；`standard` 行要求实现项、validation、UAT 项闭合，风险列 `N/A` 必须有原因；`high-risk` 行必须逐列闭合或 waiver。
 - 每条 UAT 项都能回指同一矩阵行；不能只有计划文字、smoke test 或 review PASS。
 - `df-review-loop` 普通 code review PASS 不能代表 coverage PASS；必要时指示 `$df-review-loop` 以 coverage review mode 运行，或执行等价 coverage review。
-- `handoff.md` 必须写明覆盖项已核对、缺口列表为空，或列出 waiver 与残余风险。缺口非空时状态不得写成 `uat_ready`。
+- `handoff.md` 必须写明覆盖项已核对、缺口列表为空，或列出 waiver 与残余风险。缺口非空时状态不得写成 `uat_ready`；只向用户报告缺口和下一步选项，由用户决定回 `$df-plan`、waiver、拆后续 feature 或继续人工 UAT。
 
 ## 连续执行
 
@@ -77,7 +79,7 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 - 状态更新、提交、机器验证（validation）证据落盘是 checkpoint，不是停机点。
 - 只有以下情况才暂停：checklist 全部完成、命中止损规则、需要用户决策、权限阻塞、不可定位的机器验证阻塞、用户明确要求只执行单项。
 - 可定位的机器验证失败应继续修复并重跑；不得因一次普通 validation 失败停止执行。
-- review-loop 止损默认先看 `dependency_scope`：`feature_blocking` 停整个 feature；`item_blocking_only` 冻结当前项并继续无依赖项；`independent_followup` 记录后置计划后继续当前 feature 的剩余闭合路径。
+- review-loop 止损默认先看 `dependency_scope`：`feature_blocking` 停整个 feature；`item_blocking_only` 只在已证明零文件/零接口/零状态/零门禁/零 UAT 动作链交叉时冻结当前项并继续无依赖项；`independent_followup` 记录后置计划后继续当前 feature 的剩余闭合路径。
 
 ## 止损规则
 

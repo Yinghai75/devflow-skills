@@ -821,6 +821,10 @@ def is_blocking_review_finding(
     priority = finding.get("priority", "").upper()
     if priority not in {"P0", "P1"}:
         return False
+    if finding.get("scope_decision", "").lower() == "uncertain_scope":
+        return True
+    if finding.get("scope_decision", "").lower() in {"out_of_scope_followup", "independent_followup"}:
+        return not has_audited_followup_scope(finding, resolution_records)
     if review_resolution_matches(finding, resolution_records):
         return False
     status = finding.get("status", "").lower()
@@ -829,22 +833,45 @@ def is_blocking_review_finding(
     return not ({status, decision, resolution} & resolved_values)
 
 
+def has_audited_followup_scope(
+    finding: dict[str, str],
+    resolution_records: list[dict[str, str]] | None = None,
+) -> bool:
+    scope_decision = finding.get("scope_decision", "").lower()
+    if scope_decision not in {"out_of_scope_followup", "independent_followup"}:
+        return False
+    if has_followup_audit_fields(finding):
+        return True
+    return any(
+        review_resolution_record_matches(finding, record) and has_followup_audit_fields(record)
+        for record in (resolution_records or [])
+    )
+
+
+def has_followup_audit_fields(record: dict[str, str]) -> bool:
+    has_reason = bool(record.get("non_blocking_reason") or record.get("reason"))
+    has_owner = bool(record.get("followup_owner") or record.get("followup_ref"))
+    has_no_overlap = bool(record.get("no_overlap_evidence") or record.get("scope_evidence"))
+    return has_reason and has_owner and has_no_overlap
+
+
 def review_resolution_matches(finding: dict[str, str], records: list[dict[str, str]]) -> bool:
+    return any(review_resolution_record_matches(finding, record) for record in records)
+
+
+def review_resolution_record_matches(finding: dict[str, str], record: dict[str, str]) -> bool:
     finding_id = finding.get("id") or finding.get("fingerprint")
     summary = finding.get("summary")
     file = finding.get("file")
     line = finding.get("line")
-    for record in records:
-        record_id = record.get("finding_id") or record.get("id") or record.get("fingerprint")
-        if finding_id and record_id == finding_id:
-            return True
-        if summary and record.get("finding_summary") == summary:
-            return True
-        if summary and record.get("summary") == summary:
-            return True
-        if file and line and record.get("file") == file and record.get("line") == line:
-            return True
-    return False
+    record_id = record.get("finding_id") or record.get("id") or record.get("fingerprint")
+    if finding_id and record_id == finding_id:
+        return True
+    if summary and record.get("finding_summary") == summary:
+        return True
+    if summary and record.get("summary") == summary:
+        return True
+    return bool(file and line and record.get("file") == file and record.get("line") == line)
 
 
 def accept_feature(feature: Path | str) -> AcceptResult:

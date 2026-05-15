@@ -27,7 +27,7 @@ metadata:
 14. 本 feature 涉及行为变更时，检查 `devflow/shared/golden_sets/` 中受影响的样本是否已更新；golden 门禁是否已跑且样本与当前代码一致。
 15. `acceptance.md` 必须记录 `codebase_map_checked`、`truth_doc_checked`、`golden_set_checked` 及各自的 refreshed/waiver 状态。未完成不得归档。
 16. 若本 feature 的 `first_pass` UAT 发现 3 个或更多 issue，在 `acceptance.md` 记录 `execute_validation_gap`：回顾哪些失败本可在 execute 阶段通过更强 gate、RED 测试或 golden sample 发现，并把改进建议写入 roadmap、backlog 或后续 feature 的 `validation.md` 参考。该项是回顾性检查，不单独阻断归档。
-17. 若 checklist、handoff 或提交记录显示本 feature 使用过 `$df-review-loop`，必须检查 `evidence/reviews/` 与 `review-findings.yaml`：最终状态应为 `review_loop_status: pass`，或所有未修 finding 都有明确 waiver/manual_review 记录；`mode: coverage` 的 P1 finding 也必须已修复或 waiver。未处理 P0/P1、缺失 review 轮次证据或 `tooling_blocked` 未写补救条件时不得归档。
+17. 若 checklist、handoff 或提交记录显示本 feature 使用过 `$df-review-loop`，必须检查 `evidence/reviews/` 与 `review-findings.yaml`：最终状态应为 `review_loop_status: pass`，或所有未修 finding 都有明确 waiver/manual_review 记录。`scope_decision: out_of_scope_followup` / `independent_followup` 的 P0/P1 只有同时写明非阻断理由、后续归属和与当前交付无交叉的证据时，才可视为已审计的非阻断项；`uncertain_scope` 仍阻断归档。`mode: coverage` 的 P1 finding 也必须已修复、waiver 或明确不属于当前 coverage scope。未处理 P0/P1、缺失 review 轮次证据或 `tooling_blocked` 未写补救条件时不得归档。
 18. 归档审计只核验 `plan.md#capability-coverage-matrix` 这一张矩阵。高风险 feature 的 `acceptance.md` 必须写 `capability_coverage_matrix_checked: true`，且矩阵每行都有实现项、validation、UAT 项、不可替代证据或明确 waiver。
 19. `issues.yaml` 不得存在 `status: fixed_pending_retest`，也不得存在 `status: closed` 但仍有 `needs_retest: true` 或 `retest_status: pending` 的 legacy issue；这类 issue 仍视为未关闭。
 
@@ -61,7 +61,7 @@ metadata:
 - 高风险 feature 缺少 `Capability Coverage Matrix` 或归档闭环证据。
 - 固定 checklist 项没有完成或 waiver，包括设计文档同步检查、发布闭环适用性检查。
 - `uat.md` 仍是初始模板、只有泛泛人工验收记录，或缺少核心用户可见路径的人工 UAT/waiver。
-- 已触发 `$df-review-loop` 但 `review-findings.yaml` 仍有未处理 P0/P1，包括 `mode: coverage` 的 P1；或 review 证据缺失且没有明确 waiver/manual_review。
+- 已触发 `$df-review-loop` 但 `review-findings.yaml` 仍有未处理 P0/P1，包括 `mode: coverage` 的 P1；scope 外 P0/P1 缺少非阻断理由、后续归属或无交叉证据；存在 `uncertain_scope`；或 review 证据缺失且没有明确 waiver/manual_review。
 
 agent 自己写入的 `validation_evidence: 已通过` 只算说明文字，不算通过证据。
 

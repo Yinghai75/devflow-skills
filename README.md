@@ -126,12 +126,12 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 | 概念 | 含义 | 执行阶段 | 产物 |
 |------|------|----------|------|
 | **validation**（机器验证） | 测试、构建、门禁脚本、runtime probe | df-execute、df-fix | `evidence/manifest.json` |
-| **coverage verification**（覆盖核验） | 只核验 `Capability Coverage Matrix` 中的用户可见能力是否都有实现、validation、UAT、不可替代证据或 waiver | df-execute | `handoff.md` 覆盖摘要、`review-findings.yaml` coverage findings |
-| **AI review loop**（代码审查循环） | `codex exec review`、P0/P1/P2 分流、修复复审、waiver 和止损；stop-loss 通过 `dependency_scope` 分流为整 feature 停止、仅当前项冻结或后置跟进 | df-review-loop、df-execute、df-fix | `evidence/reviews/`、`review-findings.yaml` |
+| **coverage verification**（覆盖核验） | 只读核验 `Capability Coverage Matrix`；首次执行做全量快照，断点续跑只看当前和后续 pending/in_progress 项对应行，缺口写 `handoff.md` 后由用户决定回 plan、waiver 或拆后续 feature | df-execute | `handoff.md` 覆盖摘要、`review-findings.yaml` coverage findings |
+| **AI review loop**（代码审查循环） | `codex exec review`、P0/P1/P2 分流、修复复审、waiver 和止损；stop-loss 通过 `dependency_scope` 分流，`item_blocking_only` 只有证明后续项零文件/接口/状态/门禁/UAT 动作链交叉时才可用 | df-review-loop、df-execute、df-fix | `evidence/reviews/`、`review-findings.yaml` |
 | **UAT**（人工验收） | 真实路径、真实环境、人工操作和观察 | df-uat | `uat.md` 记录 |
 | **accept audit**（归档审计） | 证据完整性、覆盖率、stale gate | df-accept | `acceptance.md` |
 
-没有独立的"verify"阶段。`Capability Coverage Matrix` 是唯一覆盖事实源；coverage verification、coverage review、issue closure 和 accept audit 都只核验这张矩阵。`verifier` 是 df-execute 和 df-fix 中的子代理角色名，负责执行 validation 门禁、复核 review 证据和运行态证据；AI diff 审查由 `df-review-loop` 统一处理，止损后是否继续后续项按 `dependency_scope` 分流。
+没有独立的"verify"阶段。`Capability Coverage Matrix` 是唯一覆盖事实源；coverage verification、coverage review 和 accept audit 都只核验这张矩阵。`df-fix` 只把当前 issue 对应能力行作为只读参考；找不到对应行时，feature lane 或 fix lane 任一为 high-risk 都必须回 `$df-plan`、waiver 或调整 scope，非 high-risk 的 fast/scoped 修复才可按 q1/q2、RED -> GREEN 和回归面收口；不得在修复期补全局矩阵。`verifier` 是 df-execute 和 df-fix 中的子代理角色名，负责执行 validation 门禁、复核 review 证据和运行态证据；AI diff 审查由 `df-review-loop` 统一处理。
 
 `df-plan` 也是 pre-plan discovery 入口，覆盖 new project bootstrap、brownfield、仓内 greenfield 和 architecture adjustment 回流。边界不清时先澄清用户/角色、产品形态、技术栈、架构边界、合同和首个垂直切片；清楚后才写正式计划。`df-plan` 不执行技术栈脚手架，脚手架任务交给 `$df-execute`。
 
