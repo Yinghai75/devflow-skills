@@ -115,7 +115,13 @@ finding 指纹使用 `priority + file + line + normalized_summary`。同一指�
 
 review loop 内每轮修复都算作调用方（`df-execute` 或 `df-fix`）的一次修复尝试，计入调用方止损计数器；不能把 review 内部修复轮次当作独立空间绕过 `doom_loop_breaker`。
 
-止损后不得继续补丁式修复。根因不清则回 integration-debug；根因清楚但需要重设计则回 `$df-plan`。
+止损时必须同时写 `dependency_scope`：
+
+- `feature_blocking`：影响后续 checklist、UAT、公共合同、状态归属、数据流、共享抽象或部署边界；立即停整个 feature，根因不清回 `integration-debug`，根因清楚但需要重设计回 `$df-plan`。
+- `item_blocking_only`：只阻断当前 checklist 项；在 `handoff.md` 写 `safe_to_continue_items`，其余已证明无依赖的项可继续。
+- `independent_followup`：属于后置跟进或独立增强；写入后续计划，不得冒充当前 feature 已闭合。
+
+止损后不得继续补丁式修复。若无法证明后续项独立，默认按 `feature_blocking` 处理。
 
 ## 调用方要求
 

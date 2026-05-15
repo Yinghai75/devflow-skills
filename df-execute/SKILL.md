@@ -44,6 +44,7 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
    - 更新 `state.yaml` 的 `current_step`；高风险 RED 证据可写入 `red_evidence`。
    - 更新 `handoff.md`。
    - 若该项形成可独立机器验证（validation）的代码/文档改动，先跑受影响路径的 targeted test（单测/构建/lint），通过后调用 `$df-review-loop --uncommitted` 做提交前 AI review；review PASS 或阻断项已有明确 waiver 后，再检查 `git status --short`，只暂存相关文件并做一个小提交；不得混入无关改动或用户明确保留的不提交文件。
+   - 若 review-loop 返回 `dependency_scope`，先按 `feature_blocking` / `item_blocking_only` / `independent_followup` 分流，再决定是回 `$df-plan`、冻结当前项，还是继续执行后续无依赖项。
    - 若机器验证（validation）失败但已改代码，先 `git stash push -m "df-execute-wip-<item-id>-<时间戳>"` 保存现场并把 hash 写入 `handoff.md`，再继续修复或回退。
    - 改了门禁脚本、状态码语义或接口契约后，检查 checklist/validation/handoff/issues 是否仍有重复描述；未清理前不得标记该项完成。
    - 禁止连续两个 checklist 项之间没有任何 git checkpoint。
@@ -75,6 +76,7 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 - 状态更新、提交、机器验证（validation）证据落盘是 checkpoint，不是停机点。
 - 只有以下情况才暂停：checklist 全部完成、命中止损规则、需要用户决策、权限阻塞、不可定位的机器验证阻塞、用户明确要求只执行单项。
 - 可定位的机器验证失败应继续修复并重跑；不得因一次普通 validation 失败停止执行。
+- review-loop 止损默认先看 `dependency_scope`：`feature_blocking` 停整个 feature；`item_blocking_only` 冻结当前项并继续无依赖项；`independent_followup` 记录后置计划后继续当前 feature 的剩余闭合路径。
 
 ## 止损规则
 
@@ -87,7 +89,7 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 - 继续推进需要改变模块职责、公共合同、状态归属、数据流方向、共享抽象或部署边界。
 - 同一文件/模块在当前 feature 中被修改超过 3 次仍未通过。
 
-暂停时更新 `state.yaml`、`checklist.yaml` 和 `handoff.md`，写清当前假设、已试过的方案、证据、下一步选项。重复修改或跨组件链路止损时写入 `doom_loop_breaker`，并说明应切 `$df-fix` / `integration-debug` 还是回 `$df-plan`。
+暂停时更新 `state.yaml`、`checklist.yaml` 和 `handoff.md`，写清当前假设、已试过的方案、证据、下一步选项。重复修改或跨组件链路止损时写入 `doom_loop_breaker`，并说明应切 `$df-fix` / `integration-debug` 还是回 `$df-plan`；若来自 review-loop，还要记录 `dependency_scope` 和 `safe_to_continue_items`。
 
 ## 子代理使用
 
@@ -117,7 +119,7 @@ Plan Mode 退出后系统自动注入的 “Implement the plan in a fresh contex
 2. 写入边界不重叠的项 → 并行 spawn，统一收集。
 3. 需要探索 → 先 `explorer`，再 `executor`。
 4. executor 返回后调用 `$df-review-loop --uncommitted`；未通过且无 waiver 不得提交。
-5. `$df-review-loop` 发现阻断 finding → 回退到 `executor` 修复，不由主模型自己修；review loop 触发止损则暂停并按 `review_loop_breaker` 回 `$df-plan` 或 integration-debug。
+5. `$df-review-loop` 发现阻断 finding → 回退到 `executor` 修复，不由主模型自己修；review loop 触发止损时先看 `dependency_scope`，再决定回 `$df-plan`、切 `integration-debug`，或冻结当前项后继续无依赖项。
 6. 主模型整合结果、更新 DevFlow 产物、处理 git。
 7. spawn `verifier` 跑对应门禁。
 8. 循环直到全部完成或止损。

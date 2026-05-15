@@ -127,11 +127,11 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 |------|------|----------|------|
 | **validation**（机器验证） | 测试、构建、门禁脚本、runtime probe | df-execute、df-fix | `evidence/manifest.json` |
 | **coverage verification**（覆盖核验） | 从目标、计划和 UAT 反推用户可见能力是否都有实现、验证、UAT 或 waiver | df-execute | `handoff.md` 覆盖摘要、`review-findings.yaml` coverage findings |
-| **AI review loop**（代码审查循环） | `codex exec review`、P0/P1/P2 分流、修复复审、waiver 和止损 | df-review-loop、df-execute、df-fix | `evidence/reviews/`、`review-findings.yaml` |
+| **AI review loop**（代码审查循环） | `codex exec review`、P0/P1/P2 分流、修复复审、waiver 和止损；stop-loss 通过 `dependency_scope` 分流为整 feature 停止、仅当前项冻结或后置跟进 | df-review-loop、df-execute、df-fix | `evidence/reviews/`、`review-findings.yaml` |
 | **UAT**（人工验收） | 真实路径、真实环境、人工操作和观察 | df-uat | `uat.md` 记录 |
 | **accept audit**（归档审计） | 证据完整性、覆盖率、stale gate | df-accept | `acceptance.md` |
 
-没有独立的"verify"阶段。coverage verification 是 `df-execute` 的目标反向核验，不是新阶段。`verifier` 是 df-execute 和 df-fix 中的子代理角色名，负责执行 validation 门禁、复核 review 证据和运行态证据；AI diff 审查由 `df-review-loop` 统一处理。
+没有独立的"verify"阶段。coverage verification 是 `df-execute` 的目标反向核验，不是新阶段。`verifier` 是 df-execute 和 df-fix 中的子代理角色名，负责执行 validation 门禁、复核 review 证据和运行态证据；AI diff 审查由 `df-review-loop` 统一处理，止损后是否继续后续项按 `dependency_scope` 分流。
 
 `df-plan` 也是 pre-plan discovery 入口，覆盖 new project bootstrap、brownfield、仓内 greenfield 和 architecture adjustment 回流。边界不清时先澄清用户/角色、产品形态、技术栈、架构边界、合同和首个垂直切片；清楚后才写正式计划。`df-plan` 不执行技术栈脚手架，脚手架任务交给 `$df-execute`。
 
