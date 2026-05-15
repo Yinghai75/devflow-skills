@@ -118,7 +118,7 @@ review loop 内每轮修复都算作调用方（`df-execute` 或 `df-fix`）的�
 止损时必须同时写 `dependency_scope`：
 
 - `feature_blocking`：影响后续 checklist、UAT、公共合同、状态归属、数据流、共享抽象或部署边界；立即停整个 feature，根因不清回 `integration-debug`，根因清楚但需要重设计回 `$df-plan`。
-- `item_blocking_only`：只阻断当前 checklist 项；在 `handoff.md` 写 `safe_to_continue_items`，其余已证明无依赖的项可继续。
+- `item_blocking_only`：仅适用于 `df-execute`；只阻断当前 checklist 项；在 `handoff.md` 写 `safe_to_continue_items`，其余已证明无依赖的项可继续。
 - `independent_followup`：属于后置跟进或独立增强；写入后续计划，不得冒充当前 feature 已闭合。
 
 止损后不得继续补丁式修复。若无法证明后续项独立，默认按 `feature_blocking` 处理。
@@ -136,3 +136,4 @@ review loop 内每轮修复都算作调用方（`df-execute` 或 `df-fix`）的�
 - 触发 issue 的同一路径 RED/GREEN 验证后，关闭 issue 前必须对本轮修复 diff 跑本 skill。
 - review finding 若暴露当前修复引入的回归，必须先修；若是独立失败面，只记录为 review finding，不冒充 UAT issue。
 - 高风险 issue 的 review PASS 不能替代用户可见 runtime gate。
+- review-loop 止损时，当前 UAT issue 仍视为未关闭；不得使用 `item_blocking_only`，也不得继续 UAT 或 `$df-accept`。若阻断项属于当前 issue 或其回归面，写 `feature_blocking` 并遵守 `df-fix` 硬锁；只有与当前 issue 无关且可后置的 finding 才能写 `independent_followup`。
