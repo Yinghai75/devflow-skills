@@ -7,13 +7,13 @@
   - PASS：入口硬闸、执行授权、scope_decision、stop-loss、compact-issues 阈值、checkpoint、Capability Coverage Matrix 和 review 5 轮硬上限仍能从对应 `SKILL.md` 的正文或关键摘要读到。
   - FAIL：核心硬闸只剩外部链接、必须读 shared protocol 才知道是否能执行或关闭 issue。
 - V-002：shared protocol 引用完整性检查。
-  - PASS：所有 `SKILL.md` 中出现的 `shared-protocols/*.md` 相对引用在源仓存在；若 README 安装方式复制到 `~/.codex/skills`，安装步骤也覆盖 `shared-protocols/`。
-  - FAIL：`SKILL.md` 引用不存在文件，或 README 仍只复制 `df-*` 导致复制安装后引用断裂。
+  - PASS：所有 `SKILL.md` 均不引用根目录 sibling `shared-protocols/`；`skills add` 只安装 `df-*` 的事实不造成断引用；关键硬闸仍在 skill 内联可读。
+  - FAIL：`SKILL.md` 引用 `../shared-protocols/*.md`，或 README 暗示 `skills add` 会安装 sibling protocol。
 - V-003：上下文读取策略检查。
   - PASS：`df-execute` / `df-fix` / `df-uat` 写明长 `handoff.md`、open issue、closed stub、`history_ref` 的读取顺序；不再无条件要求首次全量读取超过 100 行的 handoff。
   - FAIL：入口流程仍要求先全量读取长 handoff 或长 closed issue 历史。
 - V-004：compact-issues 前置条件检查。
-  - PASS：`df-fix` 和 `df-uat` 在读取或登记 issue 前写明触发条件：`issues.yaml` 超过 80 行、任一 issue 超过 50 行、或 3 个及以上 closed issue；命令指向 `uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`。
+  - PASS：`df-fix` 和 `df-uat` 在读取或登记 issue 前写明 closed/deferred 历史前置压缩；目标 open / fixed_pending_retest / needs_retest issue 即使超过 50 行也不得被前置压缩；命令指向 `uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`。
   - FAIL：只在关闭且复测通过后才 compact，或前置规则会压缩 open / fixed_pending_retest / needs_retest issue。
 - V-005：runtime compact helper 回归。
   - 注册门禁引用：`devflow/shared/gate_registry.yaml:3-8` 的 `devflow-runtime-unit`。

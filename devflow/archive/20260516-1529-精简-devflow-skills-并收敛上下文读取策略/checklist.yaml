@@ -17,12 +17,11 @@ items:
     status: done
     owner: main
     paths:
-      - shared-protocols/
       - README.md
       - README.en.md
       - runtime/tests/
     validation:
-      - "validation.md:V-002 引用完整性检查 PASS；若新增测试，纳入 validation.md:V-005"
+      - "validation.md:V-002 检查 PASS：skills add 不安装 sibling shared-protocols，最终不引入外部协议依赖"
   - id: DF-003
     title: "精简 df-execute 与 df-fix 的重复子代理、checkpoint 和回复格式规则"
     status: done
@@ -30,9 +29,6 @@ items:
     paths:
       - df-execute/SKILL.md
       - df-fix/SKILL.md
-      - shared-protocols/subagent-dispatch.md
-      - shared-protocols/checkpoint-and-hygiene.md
-      - shared-protocols/reply-format.md
     validation:
       - "validation.md:V-001 检查关键阻断规则仍在 skill 内可读；validation.md:V-002 检查引用可达"
   - id: DF-004
@@ -43,7 +39,6 @@ items:
       - df-execute/SKILL.md
       - df-fix/SKILL.md
       - df-uat/SKILL.md
-      - shared-protocols/context-reading.md
     validation:
       - "validation.md:V-003 检查长 handoff、open issue、closed stub 和 history_ref 读取顺序"
   - id: DF-005
@@ -101,7 +96,6 @@ items:
     owner: main
     paths:
       - df-*/SKILL.md
-      - shared-protocols/
       - README.md
       - README.en.md
       - runtime/tests/

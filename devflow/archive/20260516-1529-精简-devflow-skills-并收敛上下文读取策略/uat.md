@@ -2,7 +2,10 @@
 
 ## 人工验收记录
 
-暂无。等待 `$df-execute` 完成后进入 `$df-uat`。
+- 时间：2026-05-16 CST
+- 结论：用户明确表示“devflow 就不做 UAT 了，直接 `$df-accept`”。
+- waiver：本 feature 是 DevFlow skill/runtime 文档治理和本地 helper 规则修正，不涉及业务发布、远端发布、真实浏览器、插件、Dify WebApp 或 ERP 写入路径；人工 UAT 不执行，由机器门禁、review-loop 和用户显式验收意图替代。
+- 残余风险：未由人工逐项打开 skill/README 做视觉审阅；若后续使用中发现说明歧义，按 `$df-fix` 或后续 feature 处理。
 
 ## Capability Coverage Matrix 对齐项
 
@@ -23,7 +26,7 @@
 - 期望结果：关键硬闸不依赖外部文件才能被理解。
 - 不可替代证据：人工审阅记录和关键规则路径清单。
 - 自动证据：validation.md:V-001。
-- 状态：待人工 UAT
+- 状态：waived，用户明确跳过人工 UAT；自动证据见 validation.md:V-001 和 review-findings.yaml
 
 ### UAT-002：长 issues/handoff 入口不会先吞全量历史
 
@@ -40,7 +43,7 @@
 - 期望结果：长上下文读取策略和 compact 前置条件明确。
 - 不可替代证据：人工审阅记录和 compact helper gate。
 - 自动证据：validation.md:V-003、V-004、V-005。
-- 状态：待人工 UAT
+- 状态：waived，用户明确跳过人工 UAT；自动证据见 validation.md:V-003、V-004、V-005
 
 ### UAT-003：公开安装说明覆盖 shared protocol 或明确不依赖它
 
@@ -57,4 +60,4 @@
 - 期望结果：复制安装和 symlink 本机使用都不会出现断引用。
 - 不可替代证据：README 中英文安装段和引用完整性检查结果。
 - 自动证据：validation.md:V-002、V-006。
-- 状态：待人工 UAT
+- 状态：waived，用户明确跳过人工 UAT；实际方案不引入 shared-protocols 依赖，自动证据见 validation.md:V-002、V-006
