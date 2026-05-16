@@ -6,12 +6,12 @@
 
 **English** · [中文](./README.md)
 
-**A lightweight AI coding workflow for individual developers: 11 skills, about 1,050 instruction lines, covering planning, execution, AI review, UAT, fixes, archival, and recovery**
+**A lightweight AI coding workflow for individual developers: 12 skills, about 1,150 instruction lines, covering planning, execution, AI review, UAT, fixes, archival, PR/CI merge, and recovery**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
-  <img src="https://img.shields.io/badge/skills-11-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/instructions-~1050-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/skills-12-6366F1?style=flat-square" alt="Skills"/>
+  <img src="https://img.shields.io/badge/instructions-~1150-10B981?style=flat-square" alt="Instructions"/>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
@@ -33,7 +33,7 @@ Rough comparison from current public repositories:
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 skills | 1 agent file | about 3,200 lines |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 workflows | 33 agent files | about 47,600 lines |
-| **DevFlow** | **11 skills** | **5 lightweight sub-agent roles** | **about 1,050 lines** |
+| **DevFlow** | **12 skills** | **5 lightweight sub-agent roles** | **about 1,150 lines** |
 
 Core tradeoffs:
 
@@ -75,7 +75,7 @@ For other agents, copy the `df-*` directories into that agent's skills directory
 
 ### Runtime Helper
 
-`df-plan`, `df-status`, `df-uat`, and gate execution call `~/.codex/local/devflow/devflow_cli.py`. If your installer only copied `df-*`, also sync this repository's `runtime/` directory to `~/.codex/local/devflow/`.
+`df-plan`, `df-status`, `df-uat`, `df-pr-merge`, and gate execution call runtime helpers under `~/.codex/local/devflow/`. If your installer only copied `df-*`, also sync this repository's `runtime/` directory to `~/.codex/local/devflow/`.
 
 ---
 
@@ -93,6 +93,7 @@ For other agents, copy the `df-*` directories into that agent's skills directory
 /df-fix         # Fix UAT issues: triage, RED, patch, validate, close
 /df-regression  # Post-acceptance regression: handle follow-up UAT issues for archived features
 /df-accept      # Archive: check gates, UAT, codebase map, truth docs, and golden sets
+/df-pr-merge    # PR delivery: push feature branch, wait for GitHub CI, squash merge, and pull main back
 ```
 
 ---
@@ -100,9 +101,9 @@ For other agents, copy the `df-*` directories into that agent's skills directory
 ## Workflow
 
 ```text
-┌─────────┐    ┌────────────┐    ┌────────┐    ┌───────────┐
-│ df-plan │───▶│ df-execute │───▶│ df-uat │───▶│ df-accept │
-└─────────┘    └────────────┘    └────────┘    └───────────┘
+┌─────────┐    ┌────────────┐    ┌────────┐    ┌───────────┐    ┌─────────────┐
+│ df-plan │───▶│ df-execute │───▶│ df-uat │───▶│ df-accept │───▶│ df-pr-merge │
+└─────────┘    └────────────┘    └────────┘    └───────────┘    └─────────────┘
      │              ▲                │              │
      ▼              │                ▼              ▼
 ┌────────────┐ ┌────────────────┐ ┌────────┐    ┌───────────────┐
@@ -111,6 +112,7 @@ For other agents, copy the `df-*` directories into that agent's skills directory
 
 df-status: save a handoff at any stage / restore with df-status -r
 df-constraint-audit: read-only constraint drift audit at any stage
+df-pr-merge: GitHub PR, CI, and squash merge delivery after df-accept
 ```
 
 Risk lanes are classified by `df-plan`:
@@ -130,6 +132,7 @@ DevFlow separates verification into distinct concepts, avoiding ambiguity betwee
 | **AI review loop** | `codex exec review`, scope judgment before P0/P1/P2 triage, fix/re-review, waivers, and stop-loss; in-scope P0/P1 findings block, while out-of-scope P0/P1 findings may become follow-up only after proving no file/interface/state/gate/UAT-chain overlap with the current delivery, otherwise the loop pauses; `dependency_scope` splits stop-loss, and `item_blocking_only` is allowed only when later items have no file/interface/state/gate/UAT-chain overlap | df-review-loop, df-execute, df-fix | `evidence/reviews/`, `review-findings.yaml` |
 | **UAT** (manual acceptance) | real paths, real environments, manual operations and observations | df-uat | `uat.md` records |
 | **accept audit** (archival audit) | evidence completeness, coverage, stale gates | df-accept | `acceptance.md` |
+| **PR/CI merge** | push feature branch, create or reuse a PR, wait for GitHub CI, squash merge, and pull local main back | df-pr-merge | GitHub PR, CI checks, `main` |
 
 There is no standalone "verify" stage. `Capability Coverage Matrix` is the single coverage source of truth; coverage verification, coverage review, and accept audit all check that matrix. `df-fix` only uses the row for the current issue as a read-only reference; when no row matches, either a high-risk feature lane or a high-risk fix lane must return to `$df-plan`, waiver, or scope adjustment, while non-high-risk fast/scoped fixes may close via q1/q2, RED -> GREEN, and regression coverage. The global matrix must not be edited during a fix. `verifier` is a sub-agent role name in df-execute and df-fix, responsible for running validation gates and checking review/runtime evidence. AI diff review is handled by `df-review-loop`.
 
@@ -145,7 +148,7 @@ When `df-plan` continues from `devflow/roadmap.md`, status priority is `下一�
 
 ### Runtime Helper And Issue Compaction
 
-`runtime/devflow_cli.py` is the published deterministic helper source for this repository; the local runtime copy lives at `~/.codex/local/devflow/`. The `df-uat` start-of-session and pre-registration compaction gate is handled by `compact-issues`, which moves closed/deferred issues and legacy `REVIEW-*` history into feature-local `evidence/` while the active `issues.yaml` keeps only the current work set and `history_ref`.
+`runtime/devflow_cli.py` and `runtime/pr_ci_merge.py` are the published deterministic helper sources for this repository; the local runtime copy lives at `~/.codex/local/devflow/`. The `df-uat` start-of-session and pre-registration compaction gate is handled by `compact-issues`, which moves closed/deferred issues and legacy `REVIEW-*` history into feature-local `evidence/` while the active `issues.yaml` keeps only the current work set and `history_ref`.
 
 ### Layered Codebase Map
 
@@ -234,6 +237,7 @@ If execution or fixing reveals that module responsibilities, public contracts, s
 | `df-fix` | Fix active feature UAT issues through RED, patch, validation, closure, and regression notes. | fix commits, issue closure records, validation evidence |
 | `df-regression` | Handle post-acceptance regressions or new UAT issues for archived features. | regression issues, evidence, closure records in the archive feature |
 | `df-accept` | Final acceptance and archival, checking checklist, UAT, gates, review evidence, codebase map, truth docs, and golden sets. | `acceptance.md`, `devflow/archive/` |
+| `df-pr-merge` | After `df-accept`, push the feature branch, create or reuse a PR, wait for GitHub CI, then squash merge and pull local `main` back. | GitHub PR, CI checks, updated local `main` |
 
 ---
 

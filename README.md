@@ -6,12 +6,12 @@
 
 [English](./README.en.md) · **中文**
 
-**个人开发者的轻量 AI 编码工作流：11 个 skills，约 1,050 行指令，覆盖 feature 计划、执行、AI review、UAT、修复、归档与恢复**
+**个人开发者的轻量 AI 编码工作流：12 个 skills，约 1,150 行指令，覆盖 feature 计划、执行、AI review、UAT、修复、归档、PR/CI 合并与恢复**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
-  <img src="https://img.shields.io/badge/skills-11-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/instructions-~1050-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/skills-12-6366F1?style=flat-square" alt="Skills"/>
+  <img src="https://img.shields.io/badge/instructions-~1150-10B981?style=flat-square" alt="Instructions"/>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
@@ -33,7 +33,7 @@ DevFlow 解决的是一个很窄的问题：
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 个 skills | 1 个 agent 文件 | 约 3,200 行 |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 个 workflows | 33 个 agent 文件 | 约 47,600 行 |
-| **DevFlow** | **11 个 skills** | **5 类精简子代理角色** | **约 1,050 行** |
+| **DevFlow** | **12 个 skills** | **5 类精简子代理角色** | **约 1,150 行** |
 
 核心取舍：
 
@@ -75,7 +75,7 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 
 ### Runtime helper
 
-`df-plan`、`df-status`、`df-uat` 和门禁执行会调用 `~/.codex/local/devflow/devflow_cli.py`。如果安装方式只复制了 `df-*`，还需要把仓库里的 `runtime/` 同步到 `~/.codex/local/devflow/`。
+`df-plan`、`df-status`、`df-uat`、`df-pr-merge` 和门禁执行会调用 `~/.codex/local/devflow/` 下的 runtime helper。如果安装方式只复制了 `df-*`，还需要把仓库里的 `runtime/` 同步到 `~/.codex/local/devflow/`。
 
 ---
 
@@ -93,6 +93,7 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 /df-fix         # 修复 UAT issue：分流、RED、修复、验证、关闭 issue
 /df-regression  # 验收后回归：处理已归档 feature 的追加 UAT 问题
 /df-accept      # 最终归档：检查门禁、UAT、地图、truth doc、golden set 后归档
+/df-pr-merge    # PR 交付：push feature branch，等 GitHub CI，通过后 squash merge 并拉回 main
 ```
 
 ---
@@ -100,9 +101,9 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ## 工作流
 
 ```text
-┌─────────┐    ┌────────────┐    ┌────────┐    ┌───────────┐
-│ df-plan │───▶│ df-execute │───▶│ df-uat │───▶│ df-accept │
-└─────────┘    └────────────┘    └────────┘    └───────────┘
+┌─────────┐    ┌────────────┐    ┌────────┐    ┌───────────┐    ┌─────────────┐
+│ df-plan │───▶│ df-execute │───▶│ df-uat │───▶│ df-accept │───▶│ df-pr-merge │
+└─────────┘    └────────────┘    └────────┘    └───────────┘    └─────────────┘
      │              ▲                │              │
      ▼              │                ▼              ▼
 ┌────────────┐ ┌────────────────┐ ┌────────┐    ┌───────────────┐
@@ -111,6 +112,7 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 
 df-status：任意阶段保存断点 / 新会话 df-status -r 恢复
 df-constraint-audit：任意阶段只读审计约束漂移
+df-pr-merge：df-accept 后的 GitHub PR、CI 和 squash merge 交付层
 ```
 
 风险车道由 `df-plan` 分诊：
@@ -130,6 +132,7 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 | **AI review loop**（代码审查循环） | `codex exec review`、先判定 finding scope，再按 P0/P1/P2 分流、修复复审、waiver 和止损；当前 scope 内 P0/P1 阻断，scope 外 P0/P1 只有证明与当前交付零文件/接口/状态/门禁/UAT 动作链交叉时才能 follow-up，否则暂停；stop-loss 通过 `dependency_scope` 分流，`item_blocking_only` 只有证明后续项零文件/接口/状态/门禁/UAT 动作链交叉时才可用 | df-review-loop、df-execute、df-fix | `evidence/reviews/`、`review-findings.yaml` |
 | **UAT**（人工验收） | 真实路径、真实环境、人工操作和观察 | df-uat | `uat.md` 记录 |
 | **accept audit**（归档审计） | 证据完整性、覆盖率、stale gate | df-accept | `acceptance.md` |
+| **PR/CI merge**（主干交付） | push feature branch、创建或复用 PR、等待 GitHub CI、squash merge、拉回本地 main | df-pr-merge | GitHub PR、CI checks、`main` |
 
 没有独立的"verify"阶段。`Capability Coverage Matrix` 是唯一覆盖事实源；coverage verification、coverage review 和 accept audit 都只核验这张矩阵。`df-fix` 只把当前 issue 对应能力行作为只读参考；找不到对应行时，feature lane 或 fix lane 任一为 high-risk 都必须回 `$df-plan`、waiver 或调整 scope，非 high-risk 的 fast/scoped 修复才可按 q1/q2、RED -> GREEN 和回归面收口；不得在修复期补全局矩阵。`verifier` 是 df-execute 和 df-fix 中的子代理角色名，负责执行 validation 门禁、复核 review 证据和运行态证据；AI diff 审查由 `df-review-loop` 统一处理。
 
@@ -145,7 +148,7 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 
 ### Runtime helper 与 issue 压缩
 
-`runtime/devflow_cli.py` 是本仓库发布的确定性 helper 正本；本机副本位于 `~/.codex/local/devflow/`。`df-uat` 开始阶段和登记 issue 前的分层硬阻断由 `compact-issues` 执行，已关闭/延后 issue 和 legacy `REVIEW-*` 历史迁移到 feature-local `evidence/`，活跃 `issues.yaml` 只保留当前工作集和 `history_ref`。
+`runtime/devflow_cli.py` 和 `runtime/pr_ci_merge.py` 是本仓库发布的确定性 helper 正本；本机副本位于 `~/.codex/local/devflow/`。`df-uat` 开始阶段和登记 issue 前的分层硬阻断由 `compact-issues` 执行，已关闭/延后 issue 和 legacy `REVIEW-*` 历史迁移到 feature-local `evidence/`，活跃 `issues.yaml` 只保留当前工作集和 `history_ref`。
 
 ### 分层 codebase map
 
@@ -234,6 +237,7 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 | `df-fix` | 修复 active feature 的 UAT issue，完成 RED、修复、验证、关闭和回归记录。 | 修复提交、issue 关闭记录、验证证据 |
 | `df-regression` | 处理已归档 feature 的验收后追加回归或新增 UAT issue。 | archive feature 内的 regression issue、证据和关闭记录 |
 | `df-accept` | 最终验收并归档，检查 checklist、UAT、门禁、review 证据、codebase map、truth doc 和 golden set。 | `acceptance.md`、`devflow/archive/` |
+| `df-pr-merge` | 在 `df-accept` 后推送 feature branch，创建或复用 PR，等待 GitHub CI，通过后默认 squash merge 并拉回本地 `main`。 | GitHub PR、CI checks、更新后的本地 `main` |
 
 ---
 
