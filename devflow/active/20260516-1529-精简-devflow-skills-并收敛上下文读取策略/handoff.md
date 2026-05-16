@@ -1,0 +1,66 @@
+# 断点
+
+- 时间：2026-05-16 16:03:09 CST
+- 当前状态：`$df-execute` checklist 全部完成，状态写为 `uat_ready`，等待 `$df-uat`。
+- 完成摘要：
+  - `df-execute`：139 行降到 76 行，启动授权、coverage gate、goal-backward verify、review-loop 分流、止损和 checkpoint 规则保留在 skill 内。
+  - `df-fix`：127 行降到 78 行，强制接管、q1/q2/q3、high-risk 收窄、doom_loop_breaker、runtime gate、最终回复规则保留在 skill 内。
+  - `df-plan`：161 行降到 95 行，`execution_authorized: false` 和 `Capability Coverage Matrix` 规则保留。
+  - `df-review-loop`：156 行降到 89 行，`coverage review mode`、`scope_decision`、`tooling_blocked`、3 轮默认和 5 轮硬上限保留。
+  - `df-uat`：新增 scoped reading 与 compact 前置规则，但避免前置压缩 open / fixed_pending_retest / needs_retest issue。
+  - `compact_issues` helper 修正：不再因为 active open issue 超过 50 行而压缩；只压缩 closed/deferred 且非待复测 issue。
+  - README / README.en 安装说明保持 `skills add` 真实口径：只安装 12 个 `df-*` skills，runtime helper 单独同步。
+  - codebase map 已同步 skill-entrypoints、runtime-helper、docs-and-release、OVERVIEW。
+- review-loop：
+  - round-01 发现 `shared-protocols` 安装断裂 P1 和 long open issue compact P2。
+  - round-02 发现 `.current` / 前序待验收状态治理 P1，以及 compact helper 合同 P1。
+  - 已修复 shared-protocols 依赖和 compact helper 合同；`.current` finding 记录为 `independent_followup`，因为本 feature 明确由用户 `$df-execute` 授权执行，前序 feature 保留在 roadmap 的“前序待验收”。
+- validation：
+  - 仓内 `uv run python runtime/tests/test_devflow_cli.py` PASS，48 tests。
+  - 本机 `uv run python ~/.codex/local/devflow/tests/test_devflow_cli.py` PASS，48 tests。
+  - 注册门禁 `devflow-runtime-unit` PASS，最新证据 `evidence/devflow-runtime-unit-20260516-160211.log`。
+  - 注册门禁 `git-diff-check` PASS，最新证据 `evidence/git-diff-check-20260516-160222.log`。
+- coverage_snapshot 收口：
+  - `plan.md#Capability Coverage Matrix` 5 行均有实现、validation、UAT 项或明确残余风险。
+  - 缺口列表为空；普通 review PASS 不替代 coverage，本轮额外按矩阵做 goal-backward 核对。
+- waiver / residual risk：
+  - 不新增 `shared-protocols/` 发布依赖；外部共享协议方案被 review 证伪，已回退为 skill 内联关键规则。
+  - 本仓库没有 `docs/design/system_framework_truth.md`；本 feature 以 codebase map 模块卡片作为设计同步载体。
+  - 目标环境 local，不涉及 Dify、容器或线上对象；不触发 pub / -q / -p / -c。
+  - 前序 `20260513-1124-补齐-devflow-runtime-发布依赖与-issue-压缩工具` 仍待 `$df-accept`，未被本 feature 改写。
+- 下一步：
+  - 进入 `$df-uat`，按 `uat.md` 做人工审阅。
+  - UAT 通过且没有 open issue 后，再 `$df-accept`。
+
+- 时间：2026-05-16 15:38:57 CST
+- 当前状态：用户显式 `$df-execute` 授权已收到，状态切到 `executing`。
+- 当前执行项：`DF-001 建立精简 RED 基线和不可削弱规则清单`。
+- coverage_snapshot：
+  - 矩阵来源：`plan.md#Capability Coverage Matrix`。
+  - 首次执行全量核验结论：5 个能力行均有对应 checklist、validation、UAT 项或明确 waiver/残余风险。
+  - 当前无阻断缺口；`shared-protocols/` 可达性被锁定为 DF-002 执行期硬闸，不允许在未同步 README/README.en 的情况下引用。
+  - 高风险保护面：`execution_authorized`、Capability Coverage Matrix 唯一事实源、review finding 与 UAT issue 分工、compact-issues 历史可追溯性。
+  - 对应后续验证：V-001、V-002、V-003、V-004、V-005、V-006、V-007。
+- coverage_gaps：空。
+
+- 时间：2026-05-16 15:29:46 CST
+- 当前状态：`df-plan` 产物已落盘，等待用户审阅后显式 `$df-execute`。
+- 计划来源：`opusreviews/df_skills_slim_plan.md`。
+- 已吸收：
+  - `handoff.md` / `issues.yaml` scoped reading。
+  - skill 精简，但行数是软目标，不牺牲硬闸和自包含关键规则。
+  - `compact-issues` 入口前置到 `$df-fix` 和 `$df-uat`。
+- 已降级或拒绝：
+  - 不强制所有 skill 到 80 行。
+  - 不把 `df-plan` / `df-review-loop` 核心逻辑外移成只剩外部引用。
+  - 不假设 agent 会自动跟随 shared protocol 引用。
+- 前序 feature 状态：
+  - `devflow/active/20260513-1124-补齐-devflow-runtime-发布依赖与-issue-压缩工具` 仍是 validated / 待 `$df-accept`，本计划没有改写其正式文件。
+- map_modules_read:
+  - `devflow/shared/codebase_map/OVERVIEW.md`
+  - `devflow/shared/codebase_map/modules/skill-entrypoints.md`
+  - `devflow/shared/codebase_map/modules/runtime-helper.md`
+  - `devflow/shared/codebase_map/modules/docs-and-release.md`
+- 下一步：
+  - 等待用户确认后发送 `$df-execute` 或明确“执行”。
+  - 未授权前不得改 `SKILL.md`、README 或 runtime。

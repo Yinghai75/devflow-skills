@@ -1,0 +1,9 @@
+gate: git-diff-check
+status: passed
+exit_code: 0
+command: git diff --check
+run_at: 2026-05-16 16:04:05 CST
+
+## stdout
+
+## stderr

@@ -1,0 +1,41 @@
+# AI review findings 正式视图。由 df-review-loop 更新，df-accept 复核。
+review_loop_status: pass
+rounds:
+  - id: round-01
+    mode: uncommitted
+    status: findings
+    output: "evidence/reviews/20260516-154629-uncommitted/round-01.md"
+  - id: round-02
+    mode: uncommitted
+    status: findings_with_independent_followup
+    output: "evidence/reviews/20260516-155531-uncommitted/round-02.md"
+findings:
+  - priority: P1
+    file: df-execute/SKILL.md
+    line: 22
+    summary: "shared-protocols sibling docs are not installed by skills add"
+    status: fixed
+    fixed_by: "Removed all shared-protocols references from published skills and README install steps; key rules are inline."
+  - priority: P2
+    file: df-fix/SKILL.md
+    line: 16
+    summary: "df-fix compact precheck could compact long open issue"
+    status: fixed
+    fixed_by: "Narrowed skill trigger and changed compact_issues helper to preserve open active issues."
+  - priority: P1
+    file: devflow/active/.current
+    line: 1
+    summary: "previous validated feature remains waiting for accept while .current points to this active feature"
+    status: open
+    scope_decision: independent_followup
+    non_blocking_reason: "This feature explicitly tracks the new current feature authorized by $df-execute; the previous validated feature remains documented under roadmap '前序待验收' and was a non-goal of this feature."
+    followup_owner: "roadmap"
+    no_overlap_evidence: "No skill/runtime behavior in this feature depends on accepting the previous feature; current changes are limited to skill docs, compact helper preservation of active issues, README, codebase map, and this feature's DevFlow records."
+waivers: []
+manual_review:
+  - finding_summary: "previous validated feature remains waiting for accept while .current points to this active feature"
+    summary: "Recorded as independent follow-up state-management debt; do not treat as current skill slim delivery blocker."
+    non_blocking_reason: "User explicitly authorized executing this new feature; reverting .current would redirect subsequent df-execute/df-uat away from the feature being executed."
+    followup_owner: "roadmap"
+    no_overlap_evidence: "Previous feature files are not modified by this feature and roadmap keeps it under '前序待验收'."
+tooling_blocked: false

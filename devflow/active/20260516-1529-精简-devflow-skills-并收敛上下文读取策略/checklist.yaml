@@ -1,0 +1,110 @@
+items:
+  - id: DF-001
+    title: "建立精简 RED 基线和不可削弱规则清单"
+    status: done
+    owner: main
+    paths:
+      - opusreviews/df_skills_slim_plan.md
+      - df-plan/SKILL.md
+      - df-execute/SKILL.md
+      - df-fix/SKILL.md
+      - df-uat/SKILL.md
+      - df-review-loop/SKILL.md
+    validation:
+      - "记录当前行数、重复段落、必须保留的入口硬闸、stop-loss、scope 和 compact 条件；作为后续 diff 对照"
+  - id: DF-002
+    title: "确定 shared protocol 的发布可达路径并建立引用完整性防线"
+    status: done
+    owner: main
+    paths:
+      - shared-protocols/
+      - README.md
+      - README.en.md
+      - runtime/tests/
+    validation:
+      - "validation.md:V-002 引用完整性检查 PASS；若新增测试，纳入 validation.md:V-005"
+  - id: DF-003
+    title: "精简 df-execute 与 df-fix 的重复子代理、checkpoint 和回复格式规则"
+    status: done
+    owner: main
+    paths:
+      - df-execute/SKILL.md
+      - df-fix/SKILL.md
+      - shared-protocols/subagent-dispatch.md
+      - shared-protocols/checkpoint-and-hygiene.md
+      - shared-protocols/reply-format.md
+    validation:
+      - "validation.md:V-001 检查关键阻断规则仍在 skill 内可读；validation.md:V-002 检查引用可达"
+  - id: DF-004
+    title: "为 df-execute、df-fix、df-uat 落实 handoff/issues scoped reading 策略"
+    status: done
+    owner: main
+    paths:
+      - df-execute/SKILL.md
+      - df-fix/SKILL.md
+      - df-uat/SKILL.md
+      - shared-protocols/context-reading.md
+    validation:
+      - "validation.md:V-003 检查长 handoff、open issue、closed stub 和 history_ref 读取顺序"
+  - id: DF-005
+    title: "把 compact-issues 前置到 df-fix 与 df-uat 入口"
+    status: done
+    owner: main
+    paths:
+      - df-fix/SKILL.md
+      - df-uat/SKILL.md
+      - runtime/tests/
+    validation:
+      - "validation.md:V-004 检查入口阈值；validation.md:V-005 运行 devflow-runtime-unit 或等价 compact fixture"
+  - id: DF-006
+    title: "审慎精简 df-plan 与 df-review-loop 的专有长段落"
+    status: done
+    owner: main
+    paths:
+      - df-plan/SKILL.md
+      - df-review-loop/SKILL.md
+    validation:
+      - "validation.md:V-001 检查 execution_authorized、Capability Coverage Matrix、coverage review mode、scope_decision 和 5 轮硬上限仍清晰可执行"
+  - id: DF-007
+    title: "同步 README、README.en 与 codebase map"
+    status: done
+    owner: main
+    paths:
+      - README.md
+      - README.en.md
+      - devflow/shared/codebase_map/OVERVIEW.md
+      - devflow/shared/codebase_map/modules/skill-entrypoints.md
+      - devflow/shared/codebase_map/modules/runtime-helper.md
+      - devflow/shared/codebase_map/modules/docs-and-release.md
+    validation:
+      - "validation.md:V-006 检查中英文 README 安装步骤与 skill 总览一致；validation.md:V-007 检查 codebase map 已同步"
+  - id: DF-008
+    title: "设计文档同步检查"
+    status: done
+    owner: main
+    paths:
+      - devflow/shared/codebase_map/
+    validation:
+      - "本仓库没有 docs/design 正本；以 codebase map 模块卡片作为本 feature 的设计同步载体，并在 handoff.md 写明 waiver"
+  - id: DF-009
+    title: "发布闭环适用性检查"
+    status: done
+    owner: main
+    paths:
+      - README.md
+      - README.en.md
+    validation:
+      - "目标环境为 local，不涉及 Dify、容器或线上对象；若修改安装说明，需说明不触发 pub/-q/-p/-c"
+  - id: DF-010
+    title: "最终机器验证、review-loop 和最小提交分组"
+    status: done
+    owner: main
+    paths:
+      - df-*/SKILL.md
+      - shared-protocols/
+      - README.md
+      - README.en.md
+      - runtime/tests/
+      - devflow/shared/codebase_map/
+    validation:
+      - "validation.md:V-005、V-006、V-007 全部 PASS 或 waiver 落盘；提交前按当前 diff 运行 df-review-loop"

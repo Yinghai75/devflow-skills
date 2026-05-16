@@ -1,0 +1,14 @@
+gate: devflow-runtime-unit
+status: passed
+exit_code: 0
+command: uv run python /Users/yinghai/.codex/local/devflow/tests/test_devflow_cli.py
+run_at: 2026-05-16 16:02:12 CST
+
+## stdout
+
+## stderr
+................................................
+----------------------------------------------------------------------
+Ran 48 tests in 0.269s
+
+OK

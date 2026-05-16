@@ -1,0 +1,13 @@
+title: "精简 DevFlow skills 并收敛上下文读取策略"
+lane: "high-risk"
+target_env: "local"
+status: uat_ready
+created_at: "2026-05-16 15:29:46 CST"
+updated_at: "2026-05-16 16:03:09 CST"
+current_step: "checklist 全部完成；validation 和 review-loop 已收口，等待 $df-uat"
+execution_authorized: true
+execution_authorization_source: "用户消息显式触发 $df-execute，时间 2026-05-16 15:38:57 CST"
+red_evidence: "opusreviews/df_skills_slim_plan.md 指出 #3/#4/#5；README 当前安装只复制 df-* 与 runtime；df-fix compact 入口尚未覆盖 3+ closed issue 前置压缩；review RED 证明 skills add 不安装 sibling shared-protocols，compact_issues 旧行为会压缩长 open issue"
+selected_gates:
+  - devflow-runtime-unit
+  - git-diff-check
