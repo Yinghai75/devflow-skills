@@ -14,8 +14,8 @@ metadata:
 ## 流程
 
 1. 读取 active feature。
-2. 读取 `uat.md`、`acceptance.md`、`validation.md`、`handoff.md`，提取待人工验收项、已完成证据、waiver 和当前阻塞项。
-3. 开始 UAT 前先检查活跃 `issues.yaml`：超过 80 行，或任一 issue 超过 50 行，必须先运行 `uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`，校验 YAML 可解析，并确认下一个 UAT id 不会与活跃或历史 id 冲突。
+2. 读取 `uat.md`、`acceptance.md`、`validation.md`、`handoff.md`，提取待人工验收项、已完成证据、waiver 和当前阻塞项；长 `handoff.md` / `issues.yaml` 采用 scoped reading，但当前 UAT 项、阻断 issue 和最新证据必须读全。
+3. 开始 UAT 前先检查活跃 `issues.yaml`：closed/deferred issue 达到 3 个及以上，或长历史主要来自 closed/deferred issue 时，必须先运行 `uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`，校验 YAML 可解析，确认 open / fixed_pending_retest / needs_retest 未被压缩，并确认下一个 UAT id 不会与活跃或历史 id 冲突。若 open/retest issue 本身超过 50 行，不得先 compact；只读当前摘要、最新证据和 `history_ref` 后继续 intake。
 4. 先做 UAT 覆盖审计，确认每个 UAT 项都能回指 `plan.md#capability-coverage-matrix` 的用户动作链、下游成功判据、失败信号和不可替代证据，再按顺序引导用户执行 UAT。每次只给 1-3 个明确操作步骤，并说明期望看到的结果。
 5. 若验收项涉及真实浏览器、真实客户端、本机插件、外部站点、登录态、设备态、账号态或本地缓存/会话，先从已有文档和证据提取"验证画像"：
    - 入口路径：用户如何进入该能力，是手动打开、系统跳转、脚本拉起还是页面内继续操作。
@@ -61,9 +61,9 @@ metadata:
 - 归档前必须确认历史文件可追溯原始 issue id、状态、关键证据和迁移时间；归档后在活跃 issue 写 `history_ref`。
 - 不得为了压缩而删除正式记录；只能迁移到 feature-local `evidence/` 或等价正式证据目录。
 - 新增或重开 issue 时，只在活跃 `issues.yaml` 写当前失败面和最新证据；旧轮次细节继续追加到历史文件或专门 evidence 文件。
-- `$df-uat` 开始阶段和登记新 issue 前，如果活跃 `issues.yaml` 超过 80 行，或单个 issue 的历史超过 50 行，必须先做分层压缩再继续；这是硬阻断，不是建议。
+- `$df-uat` 开始阶段和登记新 issue 前，如果 closed/deferred issue 达到 3 个及以上，或长历史主要来自 closed/deferred issue，必须先做分层压缩再继续；这是硬阻断，不是建议。open / fixed_pending_retest / needs_retest issue 即使超过 50 行也不得被前置压缩，只能 scoped read 并继续当前 UAT / fix。
 - 分层压缩优先使用 helper：`uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`。
-- 分层后必须校验 YAML 可解析，并确认下一个 UAT id 不会与活跃或历史 id 冲突。
+- 分层后必须校验 YAML 可解析，确认 open / fixed_pending_retest / needs_retest issue 未被压缩，并确认下一个 UAT id 不会与活跃或历史 id 冲突。
 
 ## 非当前 UAT 项反馈
 

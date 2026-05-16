@@ -2,7 +2,7 @@
 
 ## Atlas
 
-- `df-*/SKILL.md`：11 个 DevFlow skill 入口，要求单 skill 自包含。
+- `df-*/SKILL.md`：12 个 DevFlow skill 入口，要求单 skill 保留关键硬闸摘要并可被 `skills add` 独立安装。
 - `README.md` / `README.en.md`：公开安装、机制总览和技能表。
 - `df-regression/scripts/regression_feature.py`：已归档 feature 回归 helper。
 - `runtime/`：公开仓库 runtime helper 正本、templates、tests；同步到 `~/.codex/local/devflow/` 后供 skills 调用。
@@ -19,3 +19,4 @@
 - 修改 `runtime/` 后必须同步 `~/.codex/local/devflow/`，否则 skills 实际调用旧 helper。
 - `compact-issues` 必须同时保护活跃视图可读性、历史可追溯性和下一个 UAT id 唯一性。
 - `run_gate` 必须保持 `shell=False` 和 shell 控制符拒绝，避免门禁命令注入面。
+- 根目录非 skill 文档不会被 `skills add` 自动安装；是否执行、修复、关闭 issue 或进入 UAT 的判断必须能从对应 `SKILL.md` 读到。

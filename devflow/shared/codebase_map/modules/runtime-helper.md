@@ -15,6 +15,7 @@
 - `run_gate` 负责执行项目门禁，不能使用 shell 注入面。
 - `issues.yaml` 是活跃视图；压缩必须保留历史可追溯性、legacy `REVIEW-*` 历史和下一个 UAT id 唯一性。
 - 迁移历史只能移动到 feature-local `evidence/`，不得删除正式记录。
+- skill 入口只允许在不会压缩 open / fixed_pending_retest / needs_retest issue 的场景前置 compact；超长 active issue 应 scoped read 后继续当前 UAT / fix。
 
 ## 惯例与测试
 

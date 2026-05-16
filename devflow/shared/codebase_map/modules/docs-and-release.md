@@ -17,5 +17,6 @@
 ## 惯例与测试
 
 - README 中英文同步更新。
+- 手动安装步骤复制 `df-*`；runtime helper 仍同步到 `~/.codex/local/devflow/`。
 - 发布前检查 `git status --short`，区分正式 DevFlow 产物、review 输入和临时文件。
 - 用 `git diff --check` 做基础收口。

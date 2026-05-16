@@ -6,12 +6,12 @@
 
 **English** · [中文](./README.md)
 
-**A lightweight AI coding workflow for individual developers: 12 skills, about 1,150 instruction lines, covering planning, execution, AI review, UAT, fixes, archival, PR/CI merge, and recovery**
+**A lightweight AI coding workflow for individual developers: 12 skills, about 990 instruction lines, covering planning, execution, AI review, UAT, fixes, archival, PR/CI merge, and recovery**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
   <img src="https://img.shields.io/badge/skills-12-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/instructions-~1150-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/instructions-~990-10B981?style=flat-square" alt="Instructions"/>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
@@ -33,7 +33,7 @@ Rough comparison from current public repositories:
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 skills | 1 agent file | about 3,200 lines |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 workflows | 33 agent files | about 47,600 lines |
-| **DevFlow** | **12 skills** | **5 lightweight sub-agent roles** | **about 1,150 lines** |
+| **DevFlow** | **12 skills** | **5 lightweight sub-agent roles** | **about 990 lines** |
 
 Core tradeoffs:
 
@@ -71,7 +71,7 @@ git clone https://github.com/Yinghai75/devflow-skills.git /tmp/devflow-skills-cl
 cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ```
 
-For other agents, copy the `df-*` directories into that agent's skills directory. Each `df-*` directory is an independent skill with `SKILL.md` as its entry point.
+For other agents, copy the `df-*` directories into that agent's skills directory. Each `df-*` directory is an independent skill with `SKILL.md` as its entry point, and key hard gates stay inline in each skill.
 
 ### Runtime Helper
 

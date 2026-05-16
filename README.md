@@ -6,12 +6,12 @@
 
 [English](./README.en.md) · **中文**
 
-**个人开发者的轻量 AI 编码工作流：12 个 skills，约 1,150 行指令，覆盖 feature 计划、执行、AI review、UAT、修复、归档、PR/CI 合并与恢复**
+**个人开发者的轻量 AI 编码工作流：12 个 skills，约 990 行指令，覆盖 feature 计划、执行、AI review、UAT、修复、归档、PR/CI 合并与恢复**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
   <img src="https://img.shields.io/badge/skills-12-6366F1?style=flat-square" alt="Skills"/>
-  <img src="https://img.shields.io/badge/instructions-~1150-10B981?style=flat-square" alt="Instructions"/>
+  <img src="https://img.shields.io/badge/instructions-~990-10B981?style=flat-square" alt="Instructions"/>
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"/>
 </p>
 
@@ -33,7 +33,7 @@ DevFlow 解决的是一个很窄的问题：
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 个 skills | 1 个 agent 文件 | 约 3,200 行 |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 个 workflows | 33 个 agent 文件 | 约 47,600 行 |
-| **DevFlow** | **12 个 skills** | **5 类精简子代理角色** | **约 1,150 行** |
+| **DevFlow** | **12 个 skills** | **5 类精简子代理角色** | **约 990 行** |
 
 核心取舍：
 
@@ -71,7 +71,7 @@ git clone https://github.com/Yinghai75/devflow-skills.git /tmp/devflow-skills-cl
 cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 ```
 
-其他 agent：将 `df-*` 目录复制到对应 skills 路径即可。每个 `df-*` 目录都是独立 skill，入口为 `SKILL.md`。
+其他 agent：将 `df-*` 目录复制到对应 skills 路径即可。每个 `df-*` 目录都是独立 skill，入口为 `SKILL.md`，关键硬闸保留在各自 skill 内。
 
 ### Runtime helper
 
