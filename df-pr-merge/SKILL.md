@@ -43,23 +43,28 @@ metadata:
 2. 检查 DevFlow active feature 已收口。
 3. `git push -u origin <current-branch>`。
 4. 创建或复用指向 `main` 的 PR。
-5. 等待 `gh pr checks --watch --fail-fast`。
-6. CI 通过后用 `squash` 合并 PR。
-7. 切回 `main`，执行 `git pull --ff-only origin main`。
+5. 等待 GitHub checks 出现在 PR 上；若 PR 为 `DIRTY`，明确提示先解决冲突，因为 GitHub 不会运行 `pull_request` CI。
+6. 等待 `gh pr checks --watch --fail-fast`。
+7. CI 通过后用 `squash` 合并 PR。
+8. 拉回本地 `main`：若当前 worktree 可 checkout `main`，直接切回并 `git pull --ff-only origin main`；若 `main` 已被其他 worktree checkout，则在那个 worktree 执行 `git pull --ff-only origin main`。
 
 ## 常用参数
 
 - `--merge`：CI 通过后合并 PR。`df-pr-merge` 默认应使用该参数。
 - `--merge-method squash|merge|rebase`：合并方式，默认 `squash`。
+- `--title "<标题>" --body-file <path>`：新建 PR 时手动指定标题和正文；不传时默认使用 `gh pr create --fill`。
 - `--delete-branch`：合并后删除远端 feature 分支。
 - `--draft`：新建 draft PR；不能和 `--merge` 同用。
 - `--skip-ci-wait`：跳过等待 CI。只有用户明确说明 CI 已确认通过时才使用。
+- `--checks-discovery-timeout <秒>`：等待 GitHub checks 出现在 PR 上的时间，默认 60 秒。
 - `--allow-unaccepted`：允许存在 active DevFlow feature 时继续。只用于非 DevFlow 小改或用户明确绕过。
 - 不传 `--merge`：只 push、建/复用 PR、等 CI，通过后停住，不合并。
 
 ## 失败处理
 
 - CI 失败：不合并；用 `gh pr checks <pr>`、Actions 日志或项目测试定位，不要绕过。
+- PR 有冲突：`mergeStateStatus=DIRTY` 时不等待 CI，不合并；先把 `main` 合入当前分支或 rebase，解决冲突后重新 push。
+- 没有 checks：`mergeStateStatus=CLEAN` 但超时仍无 checks 时，不合并；只有用户明确确认无 CI/已人工验证时才使用 `--skip-ci-wait`。
 - `gh` 未登录：提示用户运行 `gh auth login`。
 - branch protection 阻断：报告 GitHub 返回的具体阻断项，不用 admin bypass。
 - 工作区不干净：先提交或清理；不要把 PR 交付和未分组业务改动混在一起。

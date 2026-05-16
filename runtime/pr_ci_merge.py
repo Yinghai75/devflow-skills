@@ -7,18 +7,28 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 
 DEFAULT_BASE = "main"
 DEFAULT_REMOTE = "origin"
+DEFAULT_CHECKS_DISCOVERY_TIMEOUT = 60
+DEFAULT_CHECKS_POLL_INTERVAL = 5
 
 
 @dataclass(frozen=True)
 class CommandResult:
     stdout: str
     stderr: str
+
+
+@dataclass(frozen=True)
+class WorktreeEntry:
+    path: Path
+    branch: str | None
+    prunable: bool
 
 
 def run(
@@ -146,7 +156,39 @@ def find_pr_for_branch(repo: Path, branch: str) -> dict[str, object] | None:
     return prs[0]
 
 
-def create_or_reuse_pr(repo: Path, branch: str, base: str, draft: bool) -> dict[str, object]:
+def build_pr_create_command(
+    *,
+    branch: str,
+    base: str,
+    draft: bool,
+    title: str | None,
+    body_file: Path | None,
+) -> list[str]:
+    if body_file is not None and title is None:
+        raise SystemExit("--body-file 需要同时提供 --title，避免 gh 混用 --fill 与手写正文。")
+
+    if title is None:
+        command = ["gh", "pr", "create", "--fill", "--base", base, "--head", branch]
+    else:
+        command = ["gh", "pr", "create", "--base", base, "--head", branch, "--title", title]
+        if body_file is None:
+            command.extend(["--body", ""])
+        else:
+            command.extend(["--body-file", str(body_file)])
+
+    if draft:
+        command.append("--draft")
+    return command
+
+
+def create_or_reuse_pr(
+    repo: Path,
+    branch: str,
+    base: str,
+    draft: bool,
+    title: str | None,
+    body_file: Path | None,
+) -> dict[str, object]:
     existing = find_pr_for_branch(repo, branch)
     if existing:
         number = int(existing["number"])
@@ -156,9 +198,13 @@ def create_or_reuse_pr(repo: Path, branch: str, base: str, draft: bool) -> dict[
         print(f"复用已有 PR：#{number} {existing.get('url', '')}")
         return existing
 
-    command = ["gh", "pr", "create", "--fill", "--base", base, "--head", branch]
-    if draft:
-        command.append("--draft")
+    command = build_pr_create_command(
+        branch=branch,
+        base=base,
+        draft=draft,
+        title=title,
+        body_file=body_file,
+    )
     print("创建 PR")
     run(command, cwd=repo, capture=False)
 
@@ -169,8 +215,54 @@ def create_or_reuse_pr(repo: Path, branch: str, base: str, draft: bool) -> dict[
     return created
 
 
-def wait_for_ci(repo: Path, pr_number: int) -> None:
+def view_pr_status(repo: Path, pr_number: int) -> dict[str, object]:
+    result = run(
+        [
+            "gh",
+            "pr",
+            "view",
+            str(pr_number),
+            "--json",
+            "number,url,state,mergeStateStatus,statusCheckRollup,isDraft",
+        ],
+        cwd=repo,
+    )
+    return json.loads(result.stdout or "{}")
+
+
+def status_check_rollup(pr_status: dict[str, object]) -> list[object]:
+    rollup = pr_status.get("statusCheckRollup", [])
+    if isinstance(rollup, list):
+        return rollup
+    return []
+
+
+def wait_for_ci(
+    repo: Path,
+    pr_number: int,
+    *,
+    discovery_timeout: int = DEFAULT_CHECKS_DISCOVERY_TIMEOUT,
+    poll_interval: int = DEFAULT_CHECKS_POLL_INTERVAL,
+) -> None:
     print(f"等待 GitHub CI：PR #{pr_number}")
+    deadline = time.monotonic() + max(0, discovery_timeout)
+    while True:
+        pr_status = view_pr_status(repo, pr_number)
+        merge_state = str(pr_status.get("mergeStateStatus", ""))
+        if merge_state == "DIRTY":
+            raise SystemExit(
+                "PR 存在 merge conflict，GitHub 不会运行 pull_request CI。"
+                "请先把 base 分支合入当前分支并解决冲突，再重新 push。"
+            )
+        if status_check_rollup(pr_status):
+            break
+        if time.monotonic() >= deadline:
+            raise SystemExit(
+                "PR 当前没有可等待的 GitHub checks。"
+                "如果本仓确实没有 CI，请明确使用 --skip-ci-wait；否则先检查 workflow 是否已启用。"
+            )
+        time.sleep(max(1, poll_interval))
+
     run(["gh", "pr", "checks", str(pr_number), "--watch", "--fail-fast"], cwd=repo, capture=False)
 
 
@@ -187,9 +279,75 @@ def merge_pr(repo: Path, pr_number: int, method: str, delete_branch: bool) -> No
     run(command, cwd=repo, capture=False)
 
 
+def parse_worktree_list(output: str) -> list[WorktreeEntry]:
+    entries: list[WorktreeEntry] = []
+    current_path: Path | None = None
+    current_branch: str | None = None
+    current_prunable = False
+
+    def flush() -> None:
+        nonlocal current_path, current_branch, current_prunable
+        if current_path is not None:
+            entries.append(
+                WorktreeEntry(
+                    path=current_path,
+                    branch=current_branch,
+                    prunable=current_prunable,
+                )
+            )
+        current_path = None
+        current_branch = None
+        current_prunable = False
+
+    for line in output.splitlines():
+        if not line:
+            continue
+        if line.startswith("worktree "):
+            flush()
+            current_path = Path(line.removeprefix("worktree "))
+            continue
+        if line.startswith("branch "):
+            ref = line.removeprefix("branch ")
+            prefix = "refs/heads/"
+            current_branch = ref.removeprefix(prefix) if ref.startswith(prefix) else ref
+            continue
+        if line.startswith("prunable"):
+            current_prunable = True
+
+    flush()
+    return entries
+
+
+def worktree_for_branch(repo: Path, branch: str) -> Path | None:
+    result = run(["git", "worktree", "list", "--porcelain"], cwd=repo)
+    current_repo = repo.resolve()
+    for entry in parse_worktree_list(result.stdout):
+        if entry.prunable:
+            continue
+        if entry.branch == branch and entry.path.resolve() != current_repo:
+            return entry.path
+    return None
+
+
 def pull_back_main(repo: Path, remote: str, base: str) -> None:
+    branch = current_branch(repo)
+    if branch == base:
+        print(f"当前已在 {base}，拉取 {remote}/{base}")
+        require_clean_worktree(repo)
+        run(["git", "pull", "--ff-only", remote, base], cwd=repo, capture=False)
+        return
+
+    existing_base_worktree = worktree_for_branch(repo, base)
+    if existing_base_worktree is not None:
+        print(f"{base} 已在 worktree 中 checkout：{existing_base_worktree}")
+        print(f"在该 worktree 拉取 {remote}/{base}")
+        require_clean_worktree(existing_base_worktree)
+        run(["git", "pull", "--ff-only", remote, base], cwd=existing_base_worktree, capture=False)
+        return
+
     print(f"切回 {base} 并拉取 {remote}/{base}")
     run(["git", "checkout", base], cwd=repo, capture=False)
+    require_clean_worktree(repo)
     run(["git", "pull", "--ff-only", remote, base], cwd=repo, capture=False)
 
 
@@ -201,6 +359,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--base", default=DEFAULT_BASE, help="PR base 分支，默认 main。")
     parser.add_argument("--remote", default=DEFAULT_REMOTE, help="git remote，默认 origin。")
     parser.add_argument("--draft", action="store_true", help="新建 PR 时创建 draft PR。")
+    parser.add_argument("--title", help="新建 PR 的标题；不提供时使用 gh pr create --fill。")
+    parser.add_argument(
+        "--body-file",
+        type=Path,
+        help="新建 PR 的正文文件；需要同时提供 --title。不提供时使用 --fill 或空正文。",
+    )
     parser.add_argument("--merge", action="store_true", help="CI 通过后合并 PR。未传时只停在 CI 通过。")
     parser.add_argument(
         "--merge-method",
@@ -215,6 +379,12 @@ def parse_args() -> argparse.Namespace:
         help="不等待 GitHub CI。仅用于已确认 CI 状态的情况。",
     )
     parser.add_argument(
+        "--checks-discovery-timeout",
+        type=int,
+        default=DEFAULT_CHECKS_DISCOVERY_TIMEOUT,
+        help="等待 GitHub checks 出现在 PR 上的秒数，默认 60。",
+    )
+    parser.add_argument(
         "--allow-unaccepted",
         action="store_true",
         help="允许存在 active DevFlow feature 时继续。仅用于非 DevFlow 小改或人工确认绕过。",
@@ -226,6 +396,8 @@ def main() -> None:
     args = parse_args()
     if args.draft and args.merge:
         raise SystemExit("--draft 与 --merge 不能同时使用：draft PR 需要先人工 ready。")
+    if args.body_file is not None and args.title is None:
+        raise SystemExit("--body-file 需要同时提供 --title。")
 
     repo = resolve_repo(args.repo)
     require_clean_worktree(repo)
@@ -237,11 +409,11 @@ def main() -> None:
     ensure_feature_branch(branch, args.base)
 
     push_branch(repo, args.remote, branch)
-    pr = create_or_reuse_pr(repo, branch, args.base, args.draft)
+    pr = create_or_reuse_pr(repo, branch, args.base, args.draft, args.title, args.body_file)
     pr_number = int(pr["number"])
 
     if not args.skip_ci_wait:
-        wait_for_ci(repo, pr_number)
+        wait_for_ci(repo, pr_number, discovery_timeout=args.checks_discovery_timeout)
 
     if args.merge:
         latest_pr = find_pr_for_branch(repo, branch) or pr
