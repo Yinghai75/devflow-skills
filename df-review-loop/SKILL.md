@@ -20,7 +20,7 @@ metadata:
 - 不调用 TUI slash command `/review`；必须使用普通 shell 入口 `codex exec review`。
 - review 输出必须落盘到当前 feature 的 `evidence/reviews/`，不能只留在聊天或终端输出。
 - review finding 不是 UAT issue；只有用户可见失败面才进 `issues.yaml`。review finding 写入 `review-findings.yaml`；旧 feature 缺少该文件时先创建，不把 `handoff.md` 当主要 finding 表。
-- 不能无限追 P2。P0/P1 必修；P2 只修确定 bug、局部且在当前 scope 内的问题，其余写 waiver。
+- 不能无限追 P2。每条 finding 修复前先做 scope 判定；当前 scope 内的 P0/P1 必修；scope 外 P0/P1 只有证明与当前交付没有文件、接口、状态、门禁或 UAT 动作链交叉时才能写 follow-up，否则必须写 `uncertain_scope` 并暂停。P2 只修确定 bug、局部且在当前 scope 内的问题，其余写 waiver。
 - 每轮修复仍必须按调用方 skill 执行 validation、git checkpoint、codebase map 刷新和状态更新。
 
 ## 目标选择
@@ -77,7 +77,7 @@ review instructions 必须包含：
 
 - 当前 feature、checklist item 或 UAT issue id。
 - 本轮目标是提交前、单 commit 还是 aggregate。
-- P0/P1/P2 的处理规则：P0/P1 阻断；P2 仅确定 bug 阻断；风格或计划外扩 scope 写 waiver。
+- P0/P1/P2 的处理规则：先判定 scope，当前 scope 内 P0/P1 阻断；scope 外 P0/P1 只有证明与当前交付没有文件、接口、状态、门禁或 UAT 动作链交叉时才能写 follow-up，否则写 `uncertain_scope` 并暂停；P2 仅确定 bug 且在当前 scope 内才阻断；风格或计划外扩 scope 写 waiver。
 - 只报告可证明的 bug、数据风险、安全问题、回归风险或缺失测试；不要把超出当前计划的重构建议当阻断。
 
 ## coverage review mode
