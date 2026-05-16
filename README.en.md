@@ -87,7 +87,7 @@ For other agents, copy the `df-*` directories into that agent's skills directory
 /df-codebase-map # Code map: maintain OVERVIEW + matching module cards to save context
 /df-constraint-audit # Constraint audit: find duplicated or conflicting gates, status semantics, and contracts
 /df-execute     # Execute the checklist after explicit authorization and prove goal coverage
-/df-review-loop # Automated Codex review loop: review diffs, fix blockers, re-review, and stop-loss
+/df-review-loop # Automated Codex review: light discovery during execute, one-pass UAT-fix regression checks, post-UAT closure
 /df-status -r   # New session: restore the current feature and handoff
 /df-uat         # Manual UAT: guide real-path testing and capture the full feedback round
 /df-fix         # Fix UAT issues: triage, RED, patch, validate, close
@@ -129,7 +129,7 @@ DevFlow separates verification into distinct concepts, avoiding ambiguity betwee
 |---------|---------|-------|--------|
 | **validation** (machine verification) | tests, builds, gate scripts, runtime probes | df-execute, df-fix | `evidence/manifest.json` |
 | **coverage verification** | read-only checks against the `Capability Coverage Matrix`; first execution takes a full snapshot, resumed execution only checks rows for current and later pending/in_progress items, and gaps are written to `handoff.md` for a user decision on re-planning, waiver, or follow-up scope | df-execute | coverage summary in `handoff.md`, coverage findings in `review-findings.yaml` |
-| **AI review loop** | `codex exec review`, scope judgment before P0/P1/P2 triage, fix/re-review, waivers, and stop-loss; in-scope P0/P1 findings block, while out-of-scope P0/P1 findings are recorded as follow-ups and do not block the current task; mark `uncertain_scope` and pause when independence cannot be proven or current delivery safety may be affected; default maximum is 3 rounds, with an absolute hard cap of 5 rounds; `dependency_scope` splits stop-loss, and `item_blocking_only` is allowed only when later items have no file/interface/state/gate/UAT-chain overlap | df-review-loop, df-execute, df-fix | `evidence/reviews/`, `review-findings.yaml` |
+| **AI review loop** | `codex exec review` with scope judgment before triage, split into three modes: execute-time `discover-only` runs at most 3 rounds, stops as `feature_blocking` when P0 remains, and defers P2/P3 to post-UAT; UAT-RED `regression-check-only` runs 1 round and only blocks new P0/P1 regressions; post-UAT mode reviews commits and closes deferred findings after UAT is green. Out-of-scope P0/P1 findings may only become follow-ups with proven no-overlap evidence; otherwise mark `uncertain_scope` and pause | df-review-loop, df-execute, df-fix, df-accept | `evidence/reviews/`, `review-findings.yaml` |
 | **UAT** (manual acceptance) | real paths, real environments, manual operations and observations | df-uat | `uat.md` records |
 | **accept audit** (archival audit) | evidence completeness, coverage, stale gates | df-accept | `acceptance.md` |
 | **PR/CI merge** | push feature branch, create or reuse a PR, wait for GitHub CI, squash merge, and pull local main back | df-pr-merge | GitHub PR, CI checks, `main` |
@@ -231,7 +231,7 @@ If execution or fixing reveals that module responsibilities, public contracts, s
 | `df-codebase-map` | Maintain the layered code map: OVERVIEW plus matching module cards. | `devflow/shared/codebase_map/` |
 | `df-constraint-audit` | Read-only audit for drift between gate descriptions, status semantics, contracts, and facts. | constraint findings and source-of-truth recommendations |
 | `df-execute` | Execute checklist items after explicit authorization, run targeted tests first, then commit and update evidence, while proving the feature goal has no missing implementation. | code changes, commits, `evidence/manifest.json`, `handoff.md` |
-| `df-review-loop` | Use `codex exec review` to review diffs, then fix, re-review, waive, or stop-loss by P0/P1/P2 severity; non-Codex environments write `tooling_blocked` instead of claiming PASS. | `evidence/reviews/`, `review-findings.yaml` |
+| `df-review-loop` | Use `codex exec review` to review diffs; keep execute-time review lightweight, run one-pass UAT-fix regression checks for new P0/P1, and close deferred findings commit-by-commit after UAT is green; non-Codex environments write `tooling_blocked` instead of claiming PASS. | `evidence/reviews/`, `review-findings.yaml` |
 | `df-status` | Save a handoff or restore the current feature in a new session. | `handoff.md`, restored context |
 | `df-uat` | Guide manual UAT and capture the full feedback round. | `uat.md`, `issues.yaml` |
 | `df-fix` | Fix active feature UAT issues through RED, patch, validation, closure, and regression notes. | fix commits, issue closure records, validation evidence |

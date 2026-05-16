@@ -33,17 +33,17 @@ metadata:
 每轮生成独立目录：
 `<feature>/evidence/reviews/<YYYYMMDD-HHMMSS>-<target>/round-01.md`
 
-每轮先写 `instructions.md`。普通 code review 的 instructions 是人工审查上下文，不一定传给 CLI；coverage review mode 的 instructions 必须作为 prompt/stdin 传入。
+普通 code review 默认不落 `instructions.md`；coverage review mode 必须先写 `instructions.md` 并作为 prompt/stdin 传入。
 
 普通 code review：
-`codex exec review <target flags> <model flags> -c 'model_reasoning_effort="<effort>"' --title "<短上下文>" --json -o <round.md> > <round.jsonl>`
+`codex exec review <target flags> <model flags> -c 'model_reasoning_effort="<effort>"' --title "<短上下文>" --json -o <round.md> > <tmp-jsonl>`
 
 coverage review mode：
-`codex exec review <model flags> -c 'model_reasoning_effort="<effort>"' --title "<短上下文>-coverage" --json -o <round.md> - < <instructions.md> > <round.jsonl>`
+`codex exec review <model flags> -c 'model_reasoning_effort="<effort>"' --title "<短上下文>-coverage" --json -o <round.md> - < <instructions.md> > <tmp-jsonl>`
 
 当前 Codex CLI 的 target review 不能稳定搭配自定义 prompt。普通 review 若误用 prompt/stdin 失败，保留 stderr 为 `tooling-retry.log`，再用无 prompt 的 target 默认形态重跑；coverage review 不能降级，prompt-driven run 失败即 `tooling_blocked`。
 
-instructions 必须写：feature/checklist/issue id、目标类型、允许写入路径、P0/P1/P2 处理规则、scope 判定依据、只报告可证明 bug/数据风险/安全问题/回归风险/缺失测试。
+review 指令内容必须覆盖：feature/checklist/issue id、目标类型、允许写入路径、P0/P1/P2 处理规则、scope 判定依据、只报告可证明 bug/数据风险/安全问题/回归风险/缺失测试。
 
 ## coverage review mode
 
@@ -55,35 +55,39 @@ coverage review mode 审“计划承诺的用户可见能力是否缺实现”�
 - coverage P1 包括：矩阵承诺的能力没有 UI/API/工作流/配置/测试/运行态证据；用户动作链、成功判据或失败信号缺实现/validation/UAT 支撑；validation 只覆盖 smoke/build/lint，未覆盖矩阵要求的用户路径、真实浏览器、插件、Dify、ERP 或附件类能力。
 - finding 写入 `review-findings.yaml` 并标记 `mode: coverage`。未修或未 waiver 的 P1 阻断 `$df-execute` 宣称 `uat_ready`，也阻断 `$df-accept`。
 
-## 解析与分流
+## 运行模式
 
-读 `round.md` 后建立 finding 列表，至少记录 `priority`、`file`、`line`、`summary`、`decision`、`round`、`source_path`。指纹使用 `priority + file + line + normalized_summary`，重复指纹只更新轮次。
+review-loop 有三种运行模式，由调用方指定：
 
-每条 finding 修复前必须先判定 `scope_decision`：`in_scope` / `out_of_scope_followup` / `independent_followup` / `uncertain_scope`。判定标准是修复是否只改当前 checklist item / issue 的实现文件，且不触碰其他能力行合同、接口、状态归属或模块职责；依据来自调用方的 item、issue、coverage rows、允许路径、q1/q2 回归面和当前 diff。不得仅凭 priority 自动扩大范围。即使 finding 是 P0，也必须先写明 `scope_decision`，再决定修复、follow-up、waiver 或暂停；不得因 P0 priority 自动跨 scope 修复。
+### discover-only（实现期默认）
 
-- P0/P1：仅 `in_scope` 时必须修或写 false positive；当前 scope 内未处理 P0/P1 不得提交或关闭 issue。
-- scope 外 P0/P1：写 follow-up 或 independent follow-up，不自动修；不能证明独立或影响当前交付安全时写 `uncertain_scope` 并暂停。
-- P2：明确 bug、数据风险或测试缺口且在当前 scope 内才修；风格、偏好、架构扩 scope 或证据不足写 waiver。
-- P3 / 无优先级建议默认不阻断，只记录。
+按 P0/P1/P2 动态分级。整体硬上限 **3 轮**（含首轮），不区分由哪个 priority 触发。
 
-## 循环与止损
+- **P0 in-scope**：修 → 复审 → 新 P0 继续修 → 循环至无 P0 或达到 3 轮。**P0 scope 外**：写 `uncertain_scope` 暂停。
+- **P1 in-scope**：修 1 次 → 复审 1 轮但**只看新 P0**；发现新 P0 则进入 P0 循环，否则忽略继续。复审计入全局轮数。**P1 scope 外**：写 `out_of_scope_followup`。
+- **P2/P3**：标记 `deferred_to_post_uat`，不修不循环。
+- 达到 3 轮仍有未处理 P0：写 `review_loop_breaker` + `dependency_scope: feature_blocking`，**止损等用户决定**（不得继续实现或提示进入 UAT）。
 
-默认最多 3 轮，绝对硬上限 5 轮。第 5 轮后无论 finding 状态如何必须止损。触发绝对硬上限时，`handoff.md#review_loop_breaker` 必须写入固定标记 `review_loop_hard_cap_reached`，供 `/new` 恢复和后续 `df-status` / `df-accept` 识别。
+### regression-check-only（UAT 修复期）
 
-循环：运行 review 并落盘；解析并更新 `review-findings.yaml`；修 `scope_decision: in_scope` 的阻断项；跑调用方 validation 和门禁；git checkpoint；选择正确 target 复审；无阻断 finding 时写 `review_loop_status: pass`。
+`uat_status: RED` 时自动触发。跑 1 轮，只拦截新 P0/P1 回归（新 P0/P1 in-scope 立即修，不复审），P2/P3 和 scope 外 waiver。结果：`regression_check_done`。
 
-满足任一条件立即停止自动修复，写 `handoff.md#review_loop_breaker`：达到第 5 轮；进入第 4 轮仍有新 P1 或确定 bug P2；同一 finding 两轮修复后仍复现；同一方案造成新 P1/P2 回归；需要第三个 workaround；finding 要求改变模块职责、公共合同、状态归属、数据流方向、共享抽象或部署边界。
+### post-uat（UAT 全绿后，由 df-accept 触发）
 
-止损必须写 `dependency_scope`：
+逐 commit review（`--commit <sha>`）。处理所有 `deferred_to_post_uat` findings：scope 判定 → P0/P1 必须修 → P2 限投 1 轮。默认 2 轮 / 硬上限 3 轮，达到上限**停下等用户决定**。可批量修后跑 1 次 aggregate 复审。
 
-- `feature_blocking`：影响后续 checklist、UAT、公共合同、状态归属、数据流、共享抽象或部署边界；停整个 feature，根因不清回 `integration-debug`，根因清楚但需重设计回 `$df-plan`。
-- `item_blocking_only`：仅适用于 `df-execute`；必须证明当前阻断项与后续项没有文件、接口、状态、门禁或 UAT 动作链交叉，并写 `safe_to_continue_items`。
-- `independent_followup`：后置跟进或独立增强，不得冒充当前 feature 已闭合。
+## 分流、止损与证据
 
-止损后不得继续补丁式修复；无法证明后续项独立时默认 `feature_blocking`。
+读 `round.md` 后建立 finding 列表（`priority`/`file`/`line`/`summary`/`decision`/`round`/`source_path`）。每条 finding 先判定 `scope_decision`（`in_scope`/`out_of_scope_followup`/`independent_followup`/`uncertain_scope`），不得仅凭 priority 扩大范围；P0 也必须先写 `scope_decision`。
+
+触发硬上限或以下任一条件立即止损并写 `handoff.md#review_loop_breaker`：同一 finding 两轮仍复现；同一方案造成新 P0/P1 回归；需要第三个 workaround；finding 要求改变模块职责/公共合同/状态归属/数据流/部署边界。止损写 `dependency_scope`（`feature_blocking` / `item_blocking_only` / `independent_followup`），无法证明后续项独立时默认 `feature_blocking`。
+
+证据瘦身：JSONL 只作临时解析输入，不作为正式证据保留；`instructions.md` 只在 coverage review mode 落盘；`review-findings.yaml` 已关闭 finding 只保留 `id`/`status`/`round`；`handoff.md` 只保留最新 + 上一个断点。
 
 ## 调用方要求
 
-`df-execute`：executor 返回且 targeted validation 通过后，提交前用 `--uncommitted`；review PASS 或阻断项有 waiver 后才提交 checklist 项；多 commit 交付前可用 `--base <base>` 做 aggregate review。
+`df-execute`（实现期）：每个 checklist 项完成 targeted validation 后，用 `discover-only` 模式跑 `--uncommitted`，按该模式内部规则处理（P0 循环复审 / P1 修后只查新 P0 / P2 defer）。存在未修/未 waiver P0 时不得写 `uat_ready`。
 
-`df-fix`：目标 issue RED/GREEN 后，关闭 issue 前审本轮修复 diff；当前修复引入的回归必须先修；独立失败面只记录 review finding，不冒充 UAT issue。高风险 issue 的 review PASS 不能替代用户可见 runtime gate。review-loop 止损时当前 UAT issue 仍 open/blocked，不得使用 `item_blocking_only`，也不得继续 UAT 或 `$df-accept`；只有与当前 issue 无关且可后置的 finding 才能写 `independent_followup`。
+`df-fix`（UAT 修复期）：目标 issue RED/GREEN 后，用 `regression-check-only` 模式跑 `--uncommitted`（自动传入 `uat_status: RED`）。只拦截新 P0/P1 回归；其余不阻断 issue 关闭。高风险 issue 的 review PASS 不能替代用户可见 runtime gate。
+
+`df-accept`（UAT 全绿后）：归档前若 `review-findings.yaml` 存在 `deferred_to_post_uat`，用 `post-uat` 模式逐 commit review 并批量修 deferred findings。

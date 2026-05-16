@@ -53,7 +53,7 @@ metadata:
 5. 先定 RED：纯逻辑用单测；UAT/runtime/跨模块用真实复现、HTTP 探测、容器检查、页面操作或契约 gate。mock 单测只能补防回归。
 6. 跨运行中组件时，改代码前确认源码口径与运行态口径一致；不能确认则先记录漂移风险。
 7. 根因明确且未命中止损才修复；根因不清先调查，记录假设、证据和最小复现。
-8. 修后复跑目标 issue 的原始动作链；有 `coverage_reference` 时同步核对失败信号、成功判据和不可替代证据。跨组件还必须复跑 runtime gate，再跑最小自动测试、构建、相关门禁和 `$df-review-loop --uncommitted`。
+8. 修后复跑目标 issue 的原始动作链；有 `coverage_reference` 时同步核对失败信号、成功判据和不可替代证据。跨组件还必须复跑 runtime gate，再跑最小自动测试、构建和相关门禁。review 调用 `$df-review-loop --uncommitted`，始终传入 `uat_status: RED`，触发 regression-check-only 模式（1 轮，新 P0/P1 in-scope 立即修，P2 waiver）。
 9. 结论必须区分“运行态已验证”和“仅代码已改”。只有失败信号消失、review P0/P1 已处理或 waiver、门禁通过且关闭条件满足，才可关闭 issue。
 10. 更新 `issues.yaml`、`uat.md`、`state.yaml`、`handoff.md`。`issues.yaml` 只保留当前失败面摘要、状态、最新证据路径、复测标记、`history_ref`；长诊断、review/rework 流水和完整证据写入 `evidence/` 或 `handoff.md`。
 11. 每轮修复尝试后必须 git checkpoint，不等 issue 关闭：通过则原子提交；未通过但已改代码则 stash/WIP commit 并记录 hash；止损则立即 checkpoint。checkpoint 后检查 codebase map 命中模块，涉及接口/状态/职责边界时同步 truth doc 或 module map，行为变更时同步 golden sample。

@@ -35,7 +35,7 @@ metadata:
 3. 行为变更先写 RED 测试、fixture 或 golden sample 并确认失败，再实现。
 4. 影响面超过计划、需要改变模块职责/公共合同/状态归属/数据流/共享抽象/部署边界时，暂停当前项，更新 `handoff.md`，把 `state.yaml` 写为 `status: planning`、`current_step: "architecture adjustment 回流"`，随后回 `$df-plan`。
 5. 每完成一项，更新 `checklist.yaml`、`state.yaml.current_step`、`handoff.md`；必要时记录 `red_evidence`。
-6. 可独立机器验证的改动先跑 targeted test / lint / build，再调用 `$df-review-loop --uncommitted`。review PASS 或阻断项有明确 waiver 后，才可暂存相关文件做小提交。
+6. 可独立机器验证的改动先跑 targeted test / lint / build，再用 `discover-only` 模式调用 `$df-review-loop --uncommitted`，按该模式内部规则处理（P0 循环复审 / P1 修后只查新 P0 / P2 defer）。存在未修/未 waiver P0 时不得写 `uat_ready`。
 7. review-loop 返回 `dependency_scope` 时先分流：`feature_blocking` 停整个 feature；`item_blocking_only` 只有证明后续项零文件/接口/状态/门禁/UAT 动作链交叉时才能冻结当前项并继续；`independent_followup` 记录后置计划后继续。
 8. 机器验证失败但已改代码，先 stash 或 WIP commit，记录 hash、失败原因和下一步，再继续修复或回流。
 9. 每个可独立验证项必须 git checkpoint：通过则只暂存相关文件做原子提交；失败但已改代码则 stash/WIP commit 并记录 hash；命中止损则立即 checkpoint。
@@ -58,6 +58,7 @@ checklist 全部完成后，宣称“可进入 `$df-uat`”前，必须从 featu
 - `fast` 行只要求用户可见能力和实现项闭合；`standard` 行要求实现项、validation、UAT 闭合；`high-risk` 行逐列闭合或 waiver。
 - 每条 UAT 项能回指同一矩阵行；不能只有计划文字、smoke test 或 review PASS。
 - 普通 code review PASS 不能代表 coverage PASS；必要时运行 `$df-review-loop` 的 coverage review mode 或等价覆盖审查。
+- Aggregate review（`--base`）只在 UAT 全绿且无 open issue 后做一次；UAT 仍有 open/needs_retest issue 时，不启动 aggregate review。
 - `handoff.md` 写明覆盖核对结论。缺口非空时不得写 `uat_ready`，只报告缺口和下一步选项。
 
 ## 止损规则

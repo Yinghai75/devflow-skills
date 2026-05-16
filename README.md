@@ -87,7 +87,7 @@ cp -R /tmp/devflow-skills-claude/df-* ~/.claude/skills/
 /df-codebase-map # 维护代码地图：OVERVIEW + 命中模块卡片，节省上下文
 /df-constraint-audit # 查约束漂移：审计门禁、状态语义、接口契约是否重复或矛盾
 /df-execute     # 显式授权后执行 checklist，并反推确认目标没有漏实现
-/df-review-loop # 自动 Codex review 循环：审查 diff、修阻断项、复审和止损
+/df-review-loop # 自动 Codex review：实现期轻量发现、UAT 修复期单轮回归检查、UAT 绿后收口
 /df-status -r   # 新会话恢复：读取当前 feature、计划和断点
 /df-uat         # 人工验收：引导真实路径 UAT，完整登记本轮反馈
 /df-fix         # 修复 UAT issue：分流、RED、修复、验证、关闭 issue
@@ -129,7 +129,7 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 |------|------|----------|------|
 | **validation**（机器验证） | 测试、构建、门禁脚本、runtime probe | df-execute、df-fix | `evidence/manifest.json` |
 | **coverage verification**（覆盖核验） | 只读核验 `Capability Coverage Matrix`；首次执行做全量快照，断点续跑只看当前和后续 pending/in_progress 项对应行，缺口写 `handoff.md` 后由用户决定回 plan、waiver 或拆后续 feature | df-execute | `handoff.md` 覆盖摘要、`review-findings.yaml` coverage findings |
-| **AI review loop**（代码审查循环） | `codex exec review`、先判定 finding scope，再按 P0/P1/P2 分流、修复复审、waiver 和止损；当前 scope 内 P0/P1 阻断，scope 外 P0/P1 记录为 follow-up 且不阻断当前任务，无法证明独立或影响当前交付安全时标记 `uncertain_scope` 并暂停；默认最多 3 轮、绝对硬上限 5 轮；stop-loss 通过 `dependency_scope` 分流，`item_blocking_only` 只有证明后续项零文件/接口/状态/门禁/UAT 动作链交叉时才可用 | df-review-loop、df-execute、df-fix | `evidence/reviews/`、`review-findings.yaml` |
+| **AI review loop**（代码审查循环） | `codex exec review`、先判定 finding scope，再按三种模式分流：实现期 `discover-only` 最多 3 轮，P0 未清则 `feature_blocking` 止损，P2/P3 后置到 post-UAT；UAT RED 修复期 `regression-check-only` 只跑 1 轮并只拦新 P0/P1 回归；UAT 全绿后 `post-uat` 逐 commit 处理 deferred findings。scope 外 P0/P1 只有可证明无交叉时才可 follow-up，无法证明时 `uncertain_scope` 暂停 | df-review-loop、df-execute、df-fix、df-accept | `evidence/reviews/`、`review-findings.yaml` |
 | **UAT**（人工验收） | 真实路径、真实环境、人工操作和观察 | df-uat | `uat.md` 记录 |
 | **accept audit**（归档审计） | 证据完整性、覆盖率、stale gate | df-accept | `acceptance.md` |
 | **PR/CI merge**（主干交付） | push feature branch、创建或复用 PR、等待 GitHub CI、squash merge、拉回本地 main | df-pr-merge | GitHub PR、CI checks、`main` |
@@ -231,7 +231,7 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 | `df-codebase-map` | 维护分层代码地图：OVERVIEW + 命中模块卡片。 | `devflow/shared/codebase_map/` |
 | `df-constraint-audit` | 只读审计门禁描述、状态语义和接口契约是否与事实源漂移。 | 约束问题清单、建议唯一事实源 |
 | `df-execute` | 显式授权后按 checklist 执行，先跑 targeted test，再提交和更新证据，并证明 feature 目标没有漏实现。 | 代码改动、提交、`evidence/manifest.json`、`handoff.md` |
-| `df-review-loop` | 用 `codex exec review` 自动审查 diff，按 P0/P1/P2 修复、复审、waiver 或止损；非 Codex 环境写 `tooling_blocked`，不能冒充 PASS。 | `evidence/reviews/`、`review-findings.yaml` |
+| `df-review-loop` | 用 `codex exec review` 自动审查 diff；实现期轻量发现并后置 P2/P3，UAT RED 时单轮检查新 P0/P1，UAT 全绿后逐 commit 收口；非 Codex 环境写 `tooling_blocked`，不能冒充 PASS。 | `evidence/reviews/`、`review-findings.yaml` |
 | `df-status` | 保存断点，或在新会话恢复当前 feature。 | `handoff.md`、恢复上下文 |
 | `df-uat` | 引导人工 UAT，完整登记本轮反馈和 UAT issue。 | `uat.md`、`issues.yaml` |
 | `df-fix` | 修复 active feature 的 UAT issue，完成 RED、修复、验证、关闭和回归记录。 | 修复提交、issue 关闭记录、验证证据 |
