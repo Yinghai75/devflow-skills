@@ -1,16 +1,16 @@
 # DevFlow Roadmap
 
-## 前序待验收
+## 已归档
 
 ### 补齐 DevFlow runtime 发布依赖与 issue 压缩工具
 
-状态：validated，等待 `$df-accept`
+状态：archived
 
 目标：让公开 devflow-skills 仓库的 runtime helper、模板和 skill 调用路径形成可发布、可测试的单一事实源；补齐 `compact-issues` helper，并移除 `run-gate` 的 `shell=True` 风险。
 
-说明：该 feature 已完成实现和验证，本轮只读取其背景，不改写其正式产物。
+归档：`devflow/archive/20260513-1124-补齐-devflow-runtime-发布依赖与-issue-压缩工具`
 
-## 已归档
+说明：用户明确确认 DevFlow skills/runtime 治理任务不做人工 UAT，作为本 feature 的 UAT waiver；机器门禁、review-loop 和 Capability Coverage Matrix 审计已收口。
 
 ### 精简 DevFlow skills 并收敛上下文读取策略
 

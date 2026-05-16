@@ -39,6 +39,16 @@ map_modules_read: ["skill-entrypoints", "runtime-helper", "docs-and-release"]
 
 - 见 `checklist.yaml`。
 
+## Capability Coverage Matrix
+
+> 单一能力覆盖矩阵。`df-execute` coverage verification、`df-review-loop` coverage review 和 `df-accept` 归档审计都只核验本表，不另建额外验证矩阵。本 feature 为 DevFlow skills/runtime 治理任务，用户已确认不做人工 UAT；UAT 列保留覆盖项并以 waiver 记录。
+
+| 用户可见能力 | 用户动作链 | 下游成功判据 | 失败信号 | 实现项 | validation | UAT 项 | 不可替代证据 | waiver/残余风险 |
+|---|---|---|---|---|---|---|---|---|
+| 公开安装说明与 runtime helper 路径一致 | 维护者按 README 安装或同步 skills 与 runtime helper，再调用 skill 中的 helper 命令 | `~/.codex/local/devflow/devflow_cli.py` 路径可用；README 中英文与 skill 调用路径一致 | README 指向不存在的 helper；skill 调用本机私有路径但公开安装未覆盖 | checklist.yaml:DF-002, DF-005, DF-006 | validation.md:执行证据；`df-plan`/`df-uat` quick_validate PASS；runtime 单测 PASS | uat.md:UAT-001 | evidence/manifest.json；runtime 单测；README/README.en 与 skill diff | 用户确认 DevFlow skills/runtime 治理任务不做人工 UAT；以机器门禁和文档一致性审计替代 |
+| compact-issues 保留历史且可继续编号 | 维护者在 feature 中压缩长 `issues.yaml`，后续继续登记 UAT issue | 活跃 issues 保留当前失败面；长历史进入 evidence；新 issue id 不与活跃或历史冲突 | 历史丢失、id 重复、legacy stub 被重复归档、active issue 被误跳过 | checklist.yaml:DF-004 | validation.md:compact fixture 与 40 tests PASS | uat.md:UAT-002 | runtime/tests/test_devflow_cli.py compact 相关回归；evidence/manifest.json | 用户确认 DevFlow skills/runtime 治理任务不做人工 UAT；synthetic fixture 覆盖该工具合同 |
+| run-gate 安全执行仍能记录 evidence | 维护者运行 gate registry 中的门禁命令；含 shell 控制符的命令被拒绝 | 普通 argv 命令生成 log/manifest；危险 shell 控制符不执行副作用 | `shell=True` 注入面复现；manifest 缺失；危险命令被执行 | checklist.yaml:DF-003, DF-006 | validation.md:run-gate fixture 与 `devflow-runtime-unit`/`git-diff-check` PASS | uat.md:UAT-003 | runtime/tests/test_devflow_cli.py run-gate 安全测试；evidence/manifest.json | 用户确认 DevFlow skills/runtime 治理任务不做人工 UAT；安全合同由 RED 样本和单测闭环 |
+
 ## 验证计划
 
 - 见 `validation.md`。

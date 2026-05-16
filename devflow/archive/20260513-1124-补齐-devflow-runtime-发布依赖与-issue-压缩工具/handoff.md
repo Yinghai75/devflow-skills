@@ -1,7 +1,7 @@
 # 断点
 
 - 时间：2026-05-15 15:47:25 CST
-- 当前状态：`$df-accept` 前 review comment 已处理；实现和本机 runtime 副本已同步。
+- 当前状态：`$df-accept` 前 review comment 已处理；实现和本机 runtime 副本已同步；用户已确认 DevFlow skills/runtime 治理任务不做人工 UAT，waiver 已写入 `uat.md` 和 `acceptance.md`。
 - 已完成：
   - 建立仓内 `runtime/` 正本，包含 CLI、templates、tests。
   - `run-gate` 改为 `shell=False` argv 执行，并拒绝 shell 控制符。
@@ -16,5 +16,5 @@
   - `df-plan` / `df-uat` quick_validate PASS。
   - `devflow-runtime-unit` 和 `git-diff-check` gate PASS，最新证据见 `evidence/devflow-runtime-unit-20260515-154715.log`、`evidence/git-diff-check-20260515-154715.log` 与 `evidence/manifest.json`。
 - 下一步：
-  - 归档前先处理当前未提交 diff；工作区未收口前不得直接归档。
-  - `opusreviews/` 仍是未跟踪输入目录，未纳入发布提交。
+  - 运行 `$df-accept` 归档，并提交归档移动。
+  - `opusreviews/` 未纳入发布提交。

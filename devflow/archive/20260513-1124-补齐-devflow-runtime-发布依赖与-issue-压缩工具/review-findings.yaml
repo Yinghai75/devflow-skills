@@ -1,0 +1,22 @@
+# AI review findings 正式视图。由 df-review-loop 更新，df-accept 复核。
+review_loop_status: pass
+rounds:
+  - id: "20260515-221410-uncommitted-scope-coverage"
+    evidence_dir: "evidence/reviews/20260515-221410-uncommitted-scope-coverage"
+    final_round: "round-08.md"
+findings:
+  - priority: P2
+    summary: "让 fast 车道的覆盖收口按车道判定"
+    file: "df-plan/SKILL.md"
+    line: 121
+    status: fixed
+    resolution: "后续实现已同步 coverage gate 与 accept 规则，round-08 复审未发现阻断问题。"
+  - priority: P2
+    summary: "为 scope 外 P1 写入 df-accept 可识别的状态"
+    file: "df-review-loop/SKILL.md"
+    line: 90
+    status: fixed
+    resolution: "后续实现已补 review-findings 正式事实源与 df-accept 可识别的后置审计字段，round-08 复审未发现阻断问题。"
+waivers: []
+manual_review: []
+tooling_blocked: false
