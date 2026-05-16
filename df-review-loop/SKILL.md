@@ -98,9 +98,9 @@ coverage finding 写入 `review-findings.yaml`，并标记 `mode: coverage`；�
 
 读 `round.md` 后建立本轮 finding 列表，至少记录 priority、file、line、summary、decision、round、source_path。
 
-- 每条 finding 在修复前必须先判定 `scope_decision`：`in_scope` / `out_of_scope_followup` / `independent_followup` / `uncertain_scope`。判定依据是调用方传入的 checklist item、UAT issue、coverage rows、允许写入路径、q1/q2 回归面和当前 diff；不得仅凭 priority 自动扩大修复范围。
+- 每条 finding 在修复前必须先判定 `scope_decision`：`in_scope` / `out_of_scope_followup` / `independent_followup` / `uncertain_scope`。判定标准：修复是否**只改当前 checklist 项/issue 的实现文件**，不触碰其他能力行的合同、接口、状态归属或模块职责。判定依据是调用方传入的 checklist item、UAT issue、coverage rows、允许写入路径、q1/q2 回归面和当前 diff；不得仅凭 priority 自动扩大修复范围。**即使是 P0，如果修复路径需要改主链合同、跨模块时序、恢复链、公共接口或其他能力行的实现，也必须先标记 scope 再决定是否修。**
 - `P0` / `P1`：仅当 `scope_decision: in_scope` 时必须修复或写明为何是 false positive；不能带着当前 scope 内未处理 P0/P1 提交或关闭 issue。
-- scope 外 P0/P1 不得在本轮自动修复：能证明独立时写 `out_of_scope_followup` / `independent_followup`，并记录非阻断理由、后续归属和与当前交付无交叉的证据；不能证明独立或影响当前交付安全时写 `uncertain_scope` 并暂停询问用户或回调用方止损。
+- scope 外 P0/P1 不得在本轮自动修复：标记 `out_of_scope_followup` / `independent_followup`，写入 `review-findings.yaml` 标注 `scope: out_of_current_task`，记录 finding 和建议的后续处理（backlog / 下一个 checklist 项 / 单独 feature），然后继续当前任务。不能证明独立或影响当前交付安全时写 `uncertain_scope` 并暂停询问用户或回调用方止损。scope 外 finding 不算当前任务的阻断项。
 - `P2`：若是明确 bug、数据风险、测试缺口且在当前 scope 内，修；若是风格、偏好、架构扩 scope 或证据不足，写 waiver。
 - `P3` / 无优先级建议：默认不阻断，只记录。
 - 无法解析、超时、空输出或只有 JSONL 没有最终消息：判为 `tooling_blocked`，不能当 PASS。
@@ -109,7 +109,7 @@ finding 指纹使用 `priority + file + line + normalized_summary`。同一指�
 
 ## 循环
 
-默认最多 3 轮。
+默认最多 3 轮，绝对硬上限 5 轮。第 5 轮后无论 finding 状态如何必须止损。
 
 1. 运行 review 并落盘。
 2. 解析 findings，更新 `review-findings.yaml`。
@@ -123,6 +123,7 @@ finding 指纹使用 `priority + file + line + normalized_summary`。同一指�
 
 满足任一条件立即停止自动修复，写入 `handoff.md` 的 `review_loop_breaker`：
 
+- **绝对硬上限**：同一 review 批次达到第 5 轮，无论 finding 是否是新发现的。写 `review_loop_hard_cap_reached`，暂停并向用户报告累计轮次和未解决 finding 清单。
 - 进入第 4 轮仍有新的 P1 或确定 bug P2。
 - 同一 finding 两轮修复后仍复现。
 - 同一方案造成新的 P1/P2 回归。
