@@ -858,8 +858,8 @@ tooling_blocked: true
         self.assertIn('history_ref: "evidence/uat-001-full-history.yaml"', issues)
         self.assertEqual(1, len(list((feature / "evidence").glob("*.yaml"))))
 
-    def test_compact_issues_recompacts_oversized_active_issue_with_history_ref(self):
-        feature = create_feature(self.repo, "重开后再次压缩", "standard", "闭环 UAT", [], [])
+    def test_compact_issues_keeps_oversized_open_issue_active(self):
+        feature = create_feature(self.repo, "重开后保留活跃 issue", "standard", "闭环 UAT", [], [])
         (feature / "evidence").mkdir()
         original_history = feature / "evidence" / "uat-001-full-history.yaml"
         original_history.write_text(
@@ -888,11 +888,10 @@ tooling_blocked: true
         result = compact_issues(feature)
         issues = (feature / "issues.yaml").read_text(encoding="utf-8")
 
-        self.assertEqual(1, result.compacted_count)
-        self.assertIsNotNone(result.history_path)
+        self.assertEqual(0, result.compacted_count)
+        self.assertIsNone(result.history_path)
         self.assertIn("history_ref:", issues)
-        self.assertNotIn("reopened-54", issues)
-        self.assertIn("uat-001-full-history.yaml", result.history_path.read_text(encoding="utf-8"))
+        self.assertIn("reopened-54", issues)
         self.assertIn("original", original_history.read_text(encoding="utf-8"))
 
     def test_compact_issues_keeps_pending_retest_issue_active(self):

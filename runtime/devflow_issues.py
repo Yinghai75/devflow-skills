@@ -147,8 +147,6 @@ def _should_compact(block: str, max_issue_lines: int) -> bool:
     status = _issue_status(block)
     if status in {"closed", "deferred"}:
         return True
-    if len(block.splitlines()) > max_issue_lines:
-        return True
     return False
 
 
