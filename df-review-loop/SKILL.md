@@ -59,7 +59,7 @@ coverage review mode 审“计划承诺的用户可见能力是否缺实现”�
 
 读 `round.md` 后建立 finding 列表，至少记录 `priority`、`file`、`line`、`summary`、`decision`、`round`、`source_path`。指纹使用 `priority + file + line + normalized_summary`，重复指纹只更新轮次。
 
-每条 finding 修复前必须先判定 `scope_decision`：`in_scope` / `out_of_scope_followup` / `independent_followup` / `uncertain_scope`。判定标准是修复是否只改当前 checklist item / issue 的实现文件，且不触碰其他能力行合同、接口、状态归属或模块职责；依据来自调用方的 item、issue、coverage rows、允许路径、q1/q2 回归面和当前 diff。不得仅凭 priority 自动扩大范围。
+每条 finding 修复前必须先判定 `scope_decision`：`in_scope` / `out_of_scope_followup` / `independent_followup` / `uncertain_scope`。判定标准是修复是否只改当前 checklist item / issue 的实现文件，且不触碰其他能力行合同、接口、状态归属或模块职责；依据来自调用方的 item、issue、coverage rows、允许路径、q1/q2 回归面和当前 diff。不得仅凭 priority 自动扩大范围。即使 finding 是 P0，也必须先写明 `scope_decision`，再决定修复、follow-up、waiver 或暂停；不得因 P0 priority 自动跨 scope 修复。
 
 - P0/P1：仅 `in_scope` 时必须修或写 false positive；当前 scope 内未处理 P0/P1 不得提交或关闭 issue。
 - scope 外 P0/P1：写 follow-up 或 independent follow-up，不自动修；不能证明独立或影响当前交付安全时写 `uncertain_scope` 并暂停。
@@ -68,7 +68,7 @@ coverage review mode 审“计划承诺的用户可见能力是否缺实现”�
 
 ## 循环与止损
 
-默认最多 3 轮，绝对硬上限 5 轮。第 5 轮后无论 finding 状态如何必须止损。
+默认最多 3 轮，绝对硬上限 5 轮。第 5 轮后无论 finding 状态如何必须止损。触发绝对硬上限时，`handoff.md#review_loop_breaker` 必须写入固定标记 `review_loop_hard_cap_reached`，供 `/new` 恢复和后续 `df-status` / `df-accept` 识别。
 
 循环：运行 review 并落盘；解析并更新 `review-findings.yaml`；修 `scope_decision: in_scope` 的阻断项；跑调用方 validation 和门禁；git checkpoint；选择正确 target 复审；无阻断 finding 时写 `review_loop_status: pass`。
 
