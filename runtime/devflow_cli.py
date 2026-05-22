@@ -15,7 +15,12 @@ from pathlib import Path
 from typing import Iterable
 from zoneinfo import ZoneInfo
 
-from devflow_issues import compact_issues
+try:
+    from .devflow_breakpoints import accept_state_blockers, build_handoff_content
+    from .devflow_issues import compact_issues
+except ImportError:
+    from devflow_breakpoints import accept_state_blockers, build_handoff_content
+    from devflow_issues import compact_issues
 
 
 BEIJING = ZoneInfo("Asia/Shanghai")
@@ -339,19 +344,16 @@ def load_active_feature(repo: Path) -> Path:
     return dirs[-1]
 
 
-def save_handoff(feature: Path | str, summary: str, next_steps: Iterable[str] | None = None) -> None:
+def save_handoff(
+    feature: Path | str,
+    summary: str,
+    next_steps: Iterable[str] | None = None,
+    clear_context: bool = False,
+) -> None:
     feature = Path(feature)
-    steps = "\n".join(f"  - {step}" for step in (next_steps or [])) or "  - 待补充"
-    write_text(
-        feature / "handoff.md",
-        f"""# 断点
-
-- 时间：{now_text()}
-- 当前状态：{summary}
-- 下一步：
-{steps}
-""",
-    )
+    handoff_path = feature / "handoff.md"
+    existing = handoff_path.read_text(encoding="utf-8") if handoff_path.exists() else ""
+    write_text(handoff_path, build_handoff_content(summary, next_steps, now_text(), existing, clear_context))
     update_state(feature, current_step=summary)
 
 
@@ -683,12 +685,13 @@ def high_risk_missing_coverage_matrix_evidence(feature: Path) -> bool:
         "实现项",
         "validation",
         "UAT 项",
+        "UAT 断点",
         "不可替代证据",
         "waiver/残余风险",
     ]
     if "Capability Coverage Matrix" not in plan:
         return True
-    if any(field not in plan for field in required_fields):
+    if not capability_matrix_has_required_header(plan, required_fields):
         return True
     for raw in acceptance.splitlines():
         stripped = raw.strip().removeprefix("- ").strip()
@@ -696,6 +699,21 @@ def high_risk_missing_coverage_matrix_evidence(feature: Path) -> bool:
             value = stripped.split(":", 1)[1].strip().strip('"').strip("'").lower()
             return value != "true"
     return True
+
+
+def capability_matrix_has_required_header(plan: str, required_fields: Iterable[str]) -> bool:
+    in_matrix = False
+    for raw in plan.splitlines():
+        stripped = raw.strip()
+        if stripped.startswith("## "):
+            in_matrix = stripped == "## Capability Coverage Matrix"
+            continue
+        if not in_matrix:
+            continue
+        if stripped.startswith("|") and "用户可见能力" in stripped:
+            fields = {cell.strip() for cell in stripped.strip("|").split("|")}
+            return all(field in fields for field in required_fields)
+    return False
 
 
 def validation_is_initial_template(feature: Path, lane: str) -> bool:
@@ -888,6 +906,7 @@ def accept_feature(feature: Path | str) -> AcceptResult:
     passed_gates = {str(record.get("gate_id")) for record in records if record.get("status") == "passed"}
     failed_gates = [str(record.get("gate_id")) for record in records if record.get("status") == "failed"]
     review_blockers = review_loop_blockers(feature)
+    messages.extend(accept_state_blockers(state))
     if checklist_incomplete(feature):
         messages.append("checklist 仍有未完成项")
     if has_open_issues(feature):
@@ -946,6 +965,7 @@ def main() -> int:
     status.add_argument("--restore", "-r", action="store_true")
     status.add_argument("--summary", default="")
     status.add_argument("--next", default="")
+    status.add_argument("--clear-context", action="store_true")
 
     uat = sub.add_parser("uat")
     uat.add_argument("title")
@@ -985,7 +1005,7 @@ def main() -> int:
             print(handoff.content)
         else:
             feature = load_active_feature(repo)
-            save_handoff(feature, args.summary or "保存断点", parse_list(args.next))
+            save_handoff(feature, args.summary or "保存断点", parse_list(args.next), args.clear_context)
             print(feature / "handoff.md")
         return 0
     feature = load_active_feature(repo)

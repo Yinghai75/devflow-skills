@@ -12,6 +12,7 @@
 - 失败信号：待补充。
 - 不可替代证据：待补充。
 - 本文件只记录每个矩阵行对应的 validation 项；不得另建额外验证或关闭矩阵。
+- UAT 断点核验事实源：`plan.md#capability-coverage-matrix` 的 `UAT 断点`列与 `checklist.yaml` 的 `uat_ready`；本文件不重复维护断点清单。
 
 ## Blast Radius Guard
 
@@ -36,6 +37,7 @@
 ### TDD/RED Evidence
 
 - 待补充。
+- 测试表面：RED/回归测试默认绑定公共接口、用户可见行为或外部可观察状态；如需 mock，仅 mock 外部 IO、平台或时间等边界并说明原因。
 
 ### Waiver
 

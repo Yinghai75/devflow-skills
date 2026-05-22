@@ -1,4 +1,5 @@
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +11,7 @@ from devflow_cli import (
     TEMPLATE_DIR,
     accept_feature,
     add_uat_issue,
+    checklist_incomplete,
     create_feature,
     ensure_shared,
     existing_uat_issue_ids,
@@ -23,7 +25,6 @@ from devflow_cli import (
     update_state,
 )
 from devflow_issues import compact_issues
-
 
 class DevFlowCliTest(unittest.TestCase):
     def setUp(self):
@@ -71,7 +72,11 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertIn("用户动作链", plan)
         self.assertIn("下游成功判据", plan)
         self.assertIn("失败信号", plan)
+        self.assertIn("UAT 断点", plan)
         self.assertIn("不可替代证据", plan)
+        self.assertIn("## 架构自审", plan)
+        self.assertIn("公共核心、变体适配层与不变量归属", plan)
+        self.assertIn("接缝替换测试", plan)
         context = (feature / "context.md").read_text(encoding="utf-8")
         checklist = (feature / "checklist.yaml").read_text(encoding="utf-8")
         self.assertIn('target_env: "local"', context)
@@ -79,11 +84,16 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertIn("codebase_map_waiver:", context)
         self.assertIn("确认设计文档是否需要同步更新", checklist)
         self.assertIn("确认发布闭环是否适用", checklist)
+        self.assertIn("uat_ready:", checklist)
         validation = (feature / "validation.md").read_text(encoding="utf-8")
         self.assertIn("Capability Coverage Matrix 核验", validation)
         self.assertIn("用户动作链", validation)
+        self.assertIn("测试表面", validation)
         uat = (feature / "uat.md").read_text(encoding="utf-8")
+        self.assertIn("UAT 断点说明", uat)
+        self.assertIn("本文件不手工维护当前断点状态", uat)
         self.assertIn("Capability Coverage Matrix 对齐项", uat)
+        self.assertIn("来源断点", uat)
         self.assertIn("对应下游成功判据", uat)
         acceptance = (feature / "acceptance.md").read_text(encoding="utf-8")
         self.assertIn("capability_coverage_matrix_checked: false", acceptance)
@@ -140,6 +150,148 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertEqual(feature, restored.feature_dir)
         self.assertIn("正在执行 checklist 第 2 项", restored.content)
         self.assertIn("运行单测", restored.content)
+
+    def test_save_handoff_preserves_dispatch_queue_context(self):
+        feature = create_feature(self.repo, "断点队列", "standard", "保留执行队列", [], [])
+        (feature / "handoff.md").write_text(
+            """# 断点
+
+- 当前状态：DF-001 旧摘要
+
+## dispatch_queue
+
+- DF-002: pending
+
+## 当前 UAT 断点
+
+- status: ready_for_uat
+- uat_items: [UAT-001]
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "保存新断点", next_steps=["继续 UAT"])
+        restored = restore_handoff(self.repo)
+
+        self.assertIn("保存新断点", restored.content)
+        self.assertIn("dispatch_queue", restored.content)
+        self.assertIn("UAT-001", restored.content)
+        self.assertNotIn("DF-001 旧摘要", restored.content)
+
+        save_handoff(feature, "再次保存断点", next_steps=["继续执行"])
+        restored = restore_handoff(self.repo)
+
+        self.assertIn("再次保存断点", restored.content)
+        self.assertIn("dispatch_queue", restored.content)
+        self.assertIn("UAT-001", restored.content)
+        self.assertNotIn("保存新断点", restored.content)
+
+    def test_save_handoff_preserves_doom_loop_breaker_context(self):
+        feature = create_feature(self.repo, "止损断点", "standard", "保留止损", [], [])
+        (feature / "handoff.md").write_text(
+            """# 断点
+
+## doom_loop_breaker
+
+- dependency_scope: feature_blocking
+- next_decision: 回到 df-plan
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "保存止损断点", next_steps=["等待用户决定"])
+        restored = restore_handoff(self.repo)
+
+        self.assertIn("doom_loop_breaker", restored.content)
+        self.assertIn("feature_blocking", restored.content)
+
+    def test_save_handoff_can_clear_resolved_context(self):
+        feature = create_feature(self.repo, "清除断点", "standard", "清除已完成队列", [], [])
+        (feature / "handoff.md").write_text(
+            """# 断点
+
+## dispatch_queue
+
+- DF-002: done
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "断点已清除", next_steps=["进入 df-accept"], clear_context=True)
+        restored = restore_handoff(self.repo)
+
+        self.assertIn("断点已清除", restored.content)
+        self.assertNotIn("dispatch_queue", restored.content)
+
+    def test_save_handoff_clears_passed_uat_breakpoint_when_resuming_df(self):
+        feature = create_feature(self.repo, "断点通过", "standard", "恢复执行", [], [])
+        (feature / "handoff.md").write_text(
+            """# 断点
+
+## 当前 UAT 断点
+
+- status: ready_for_uat
+- uat_items: [UAT-001]
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "UAT-001 已通过，下一步 DF-002", next_steps=["继续执行 DF-002"], clear_context=True)
+        restored = restore_handoff(self.repo)
+
+        self.assertIn("UAT-001 已通过，下一步 DF-002", restored.content)
+        self.assertNotIn("## 当前 UAT 断点", restored.content)
+        self.assertNotIn("status: ready_for_uat", restored.content)
+
+    def test_save_handoff_does_not_infer_clear_context_from_summary(self):
+        feature = create_feature(self.repo, "断点多项", "standard", "避免误清", [], [])
+        (feature / "handoff.md").write_text(
+            """# 断点
+
+## 当前 UAT 断点
+
+- status: ready_for_uat
+- uat_items: [UAT-001, UAT-002]
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "UAT-001 已通过，下一步继续当前断点", next_steps=["继续 UAT-002"])
+        restored = restore_handoff(self.repo)
+
+        self.assertIn("## 当前 UAT 断点", restored.content)
+        self.assertIn("UAT-002", restored.content)
+
+    def test_save_handoff_does_not_preserve_plain_summary_mentions(self):
+        feature = create_feature(self.repo, "摘要噪声", "standard", "避免旧摘要污染", [], [])
+        (feature / "handoff.md").write_text(
+            """# 断点
+
+- 时间：old
+- 当前状态：当前断点 UAT-001 失败
+- 下一步：
+  - 修复
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "新摘要", next_steps=["继续"])
+        restored = restore_handoff(self.repo)
+
+        self.assertIn("新摘要", restored.content)
+        self.assertNotIn("当前断点 UAT-001 失败", restored.content)
+
+    def test_runtime_cli_supports_module_execution(self):
+        completed = subprocess.run(
+            [sys.executable, "-m", "runtime.devflow_cli", "--help"],
+            cwd=Path(__file__).resolve().parents[2],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertIn("DevFlow 本地状态工具", completed.stdout)
 
     def test_update_state_keeps_single_updated_at_field(self):
         feature = create_feature(self.repo, "状态更新", "standard", "完成修复", [], [])
@@ -221,6 +373,47 @@ class DevFlowCliTest(unittest.TestCase):
 
         self.assertFalse(result.ok)
         self.assertIn("checklist 仍有未完成项", result.messages)
+
+    def test_accept_blocks_ready_for_uat_state(self):
+        feature = create_feature(self.repo, "待 UAT 断点", "standard", "阻断提前归档", [], [])
+        self.complete_default_checklist(feature)
+        update_state(feature, status="ready_for_uat")
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn(
+            "当前 feature 处于 ready_for_uat；必须先完成当前断点 UAT 或 waiver 后再归档",
+            result.messages,
+        )
+
+    def test_checklist_completion_ignores_nested_uat_ready_metadata(self):
+        feature = create_feature(self.repo, "断点元数据", "standard", "验证 checklist 断点元数据", [], [])
+        (feature / "checklist.yaml").write_text(
+            """items:
+  - id: DF-001
+    title: "完成首段能力"
+    status: done
+    owner: main
+    paths: []
+    validation: []
+    uat_ready:
+      level: required
+      uat_items:
+        - UAT-001
+      reason: "首段能力可独立人工验收"
+      status: ready_for_uat
+  - id: DF-002
+    title: "后续项已豁免"
+    status: waived
+    owner: main
+    paths: []
+    validation: []
+""",
+            encoding="utf-8",
+        )
+
+        self.assertFalse(checklist_incomplete(feature))
 
     def test_accept_blocks_open_uat_issues(self):
         feature = create_feature(self.repo, "开放 UAT", "standard", "修复 UAT", [], [])
@@ -668,6 +861,25 @@ tooling_blocked: true
                 {"gates": [{"gate_id": "state-machine-regression", "status": "passed"}]},
                 ensure_ascii=False,
             ),
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("高风险能力缺少 Capability Coverage Matrix 闭环证据", result.messages)
+
+    def test_accept_blocks_high_risk_when_matrix_header_misses_uat_breakpoint(self):
+        feature = create_feature(self.repo, "高风险断点列缺失", "high-risk", "改状态机", [], [])
+        recommend_gates(feature, surfaces=["state-machine"])
+        self.complete_default_checklist(feature)
+        update_state(feature, status="validated", red_evidence="已确认 state-machine-regression 的 RED 样本")
+        self.mark_coverage_matrix_checked(feature)
+        self.replace_gate_command(feature, "state-machine-regression", "uv --version")
+        run_gate(feature, "state-machine-regression")
+        plan_path = feature / "plan.md"
+        plan_path.write_text(
+            plan_path.read_text(encoding="utf-8").replace(" | UAT 断点 |", " | "),
             encoding="utf-8",
         )
 

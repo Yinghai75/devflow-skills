@@ -1,3 +1,13 @@
+# 分段 UAT-ready 断点规则：
+# - 人工 UAT 不得写成独立 checklist item，只能作为工程项的 uat_ready 元数据。
+# - 不要把 uat_ready 写在 DF-001/DF-002/DF-003 这类计划、文档同步或发布确认元任务上。
+# - uat_items 应绑定最早可人工验收的用户可感知阶段成果；过粗时拆 DF 项或写 waiver。
+# 示例：
+# uat_ready:
+#   level: required
+#   uat_items:
+#     - UAT-001
+#   reason: "该能力已可独立人工验收，后续 DF 不应提前推进。"
 items:
   - id: DF-001
     title: "补全计划与验证门禁"
