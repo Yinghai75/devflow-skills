@@ -14,9 +14,9 @@ metadata:
 ## 流程
 
 1. 读取 active feature。
-2. 读取 `uat.md`、`acceptance.md`、`validation.md`、`handoff.md`，提取待人工验收项、已完成证据、waiver 和当前阻塞项；长 `handoff.md` / `issues.yaml` 采用 scoped reading，但当前 UAT 项、阻断 issue 和最新证据必须读全。
+2. 读取 `uat.md`、`acceptance.md`、`validation.md`、`handoff.md`、`state.yaml`，提取待人工验收项、已完成证据、waiver、当前 UAT 断点和当前阻塞项；长 `handoff.md` / `issues.yaml` 采用 scoped reading，但当前断点、当前 UAT 项、阻断 issue 和最新证据必须读全。
 3. 开始 UAT 前先检查活跃 `issues.yaml`：closed/deferred issue 达到 3 个及以上，或长历史主要来自 closed/deferred issue 时，必须先运行 `uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`，校验 YAML 可解析，确认 open / fixed_pending_retest / needs_retest 未被压缩，并确认下一个 UAT id 不会与活跃或历史 id 冲突。若 open/retest issue 本身超过 50 行，不得先 compact；只读当前摘要、最新证据和 `history_ref` 后继续 intake。
-4. 先做 UAT 覆盖审计，确认每个 UAT 项都能回指 `plan.md#capability-coverage-matrix` 的用户动作链、下游成功判据、失败信号和不可替代证据，再按顺序引导用户执行 UAT。每次只给 1-3 个明确操作步骤，并说明期望看到的结果。
+4. 先做 UAT 覆盖审计，确认每个 UAT 项都能回指 `plan.md#capability-coverage-matrix` 的用户动作链、下游成功判据、失败信号和不可替代证据。若当前 `state.yaml status: ready_for_uat` 或 `handoff.md` 写有当前断点，本轮只引导该断点 `uat_items`；不得提前推进后续断点或全量 UAT。没有当前断点时，才按顺序引导所有未完成 UAT。每次只给 1-3 个明确操作步骤，并说明期望看到的结果。
 5. 若验收项涉及真实浏览器、真实客户端、本机插件、外部站点、登录态、设备态、账号态或本地缓存/会话，先从已有文档和证据提取"验证画像"：
    - 入口路径：用户如何进入该能力，是手动打开、系统跳转、脚本拉起还是页面内继续操作。
    - 客户端画像：浏览器/客户端品牌、channel、是否真实用户窗口。
@@ -24,14 +24,14 @@ metadata:
    - 环境画像：目标环境、网络位置、样本类型、是否真实账号/真实站点。
    - 只有画像缺失时，才补问用户或在 `uat.md`/证据中显式记缺口。
 6. 根据用户反馈判断：
-   - 通过：记录该项已通过；若还有未完成 UAT 项，直接提示下一项的 1-3 个操作步骤和期望结果。
+   - 通过：记录该项已通过；若当前断点内还有未完成 UAT 项，直接提示下一项的 1-3 个操作步骤和期望结果；不要跳到后续断点。
    - 不通过：提取 issue 标题、现象、严重度；严重度只能是 `low`、`medium`、`high`、`critical`。
    - 信息不足：要求用户补充最小必要证据，例如截图、页面文字、控制台错误、请求响应或具体复现步骤。
    - 越界试测：按"非当前 UAT 项反馈"处理。
 7. 需要记录 issue 前，必须先执行"Issue 去重与重开规则"；只有确认不是既有 issue 的同一用户可见问题，才运行：
    `uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> uat "<标题>" "<现象>" --severity <low|medium|high|critical>`
 8. 回复生成的 issue id，并继续完成本轮用户反馈 intake；没有 issue id 时禁止转修。
-9. 本轮反馈全部登记、去重、重开和落盘完成后，按"Issue 后续判定"明确是进入 `$df-fix <issue-id>`，还是继续下一项 UAT。
+9. 本轮反馈全部登记、去重、重开和落盘完成后，按"Issue 后续判定"明确是进入 `$df-fix <issue-id>`，继续当前断点下一项 UAT，还是当前断点已通过后回 `$df-execute`。
 10. 若判定需要进入 `$df-fix <issue-id>`，必须立即读取 `df-fix` skill 并按其流程继续；禁止在 `$df-uat` 语境下直接修改实现文件。
 
 脚本会拒绝非法严重度，不要用 `urgent`、`blocker` 等临时值绕过枚举。
@@ -67,12 +67,20 @@ metadata:
 
 ## 非当前 UAT 项反馈
 
-用户可能在当前 UAT 中顺手测试到后续 UAT 项。处理顺序：
+用户可能在当前 UAT 中顺手测试到后续 UAT 项，尤其是当前 feature 存在分段 UAT-ready 断点时。处理顺序：
 
 1. 先判定归属：当前 UAT 项、后续 UAT 项提前覆盖、后续 UAT 项 issue、信息不足。
 2. 如果是后续 UAT 项提前覆盖，只在 `uat.md` 记录动作与证据；只有用户明确反馈该项通过，才关闭该项。
-3. 如果是后续 UAT 项 issue，登记 issue，标题写清所属 UAT 项；不算当前 UAT 项失败。
+3. 如果是后续 UAT 项 issue，登记 issue，标题写清所属 UAT 项，并在 `issues.yaml` 写 `checkpoint_scope: future_checkpoint` 和对应 `uat_items` / `source_uat_items`；不算当前 UAT 项失败。
 4. 登记后提醒用户先收口当前 UAT；不要跟随用户切到后续阶段，也不要自动 `$df-fix`，除非该 issue 阻断当前 UAT 或用户明确要求暂停当前 UAT 去修。
+
+## 分段 UAT-ready 断点
+
+- 当前断点来源只读 `state.yaml`、`handoff.md` 和 checklist item 的 `uat_ready` 元数据；`df-uat` 不规划新断点，不重排 `uat_items`。
+- 当前断点 UAT 全部通过或 waiver，且仍有 pending / in_progress checklist item 时，把 `state.yaml status` 写回 `ready_for_execute`，用 `df-status --clear-context` 保存 handoff，写明已通过的 `uat_items` 和下一条 pending DF，并提示用户继续 `$df-execute`。
+- 当前断点 UAT 全部通过或 waiver，且 checklist 已全部 done/waived、所有 UAT 均完成且无 open/retest issue 时，先把 `state.yaml status` 从 `ready_for_uat` 写为 `validated`，用 `df-status --clear-context` 保存 handoff，写明当前 UAT 断点已清除、全部 `uat_items` 已通过或 waiver，再提示进入 `$df-accept`。
+- 当前断点关联的 issue 存在 open、`fixed_pending_retest`、`needs_retest: true` 或 `retest_status: pending` 时，不得把状态写回 `ready_for_execute`，按严重度进入 `$df-fix <issue-id>` 或继续补当前断点证据。`checkpoint_scope: future_checkpoint` 且 `uat_items` 不属于当前断点的 issue 不阻断当前断点通过，但必须保留到对应后续断点；缺少 scope 的 open/retest issue 默认按当前断点阻断处理。
+- 旧 feature 没有 `uat_ready` 断点时保持原语义：按 `uat.md` 顺序引导全部人工 UAT，全绿后提示 `$df-accept`。
 
 ## 本轮反馈 intake 硬闸
 

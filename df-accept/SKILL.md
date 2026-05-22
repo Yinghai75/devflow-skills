@@ -31,6 +31,7 @@ metadata:
 18. 若 checklist、handoff 或提交记录显示本 feature 使用过 `$df-review-loop`，必须检查 `evidence/reviews/` 与 `review-findings.yaml`：最终状态应为 `review_loop_status: pass`，或所有未修 finding 都有明确 waiver/manual_review 记录。`scope_decision: out_of_scope_followup` / `independent_followup` 的 P0/P1 只有同时写明非阻断理由、后续归属和与当前交付无交叉的证据时，才可视为已审计的非阻断项；`uncertain_scope` 仍阻断归档。`mode: coverage` 的 P1 finding 也必须已修复、waiver 或明确不属于当前 coverage scope。未处理 P0/P1、缺失 review 轮次证据或 `tooling_blocked` 未写补救条件时不得归档。
 19. 归档审计只核验 `plan.md#capability-coverage-matrix` 这一张矩阵。高风险 feature 的 `acceptance.md` 必须写 `capability_coverage_matrix_checked: true`，且矩阵每行都有实现项、validation、UAT 项、不可替代证据或明确 waiver。
 20. `issues.yaml` 不得存在 `status: fixed_pending_retest`，也不得存在 `status: closed` 但仍有 `needs_retest: true` 或 `retest_status: pending` 的 legacy issue；这类 issue 仍视为未关闭。
+21. 若 `state.yaml status: ready_for_uat`，说明当前停在分段 UAT-ready 断点；必须先回 `$df-uat` 完成该断点全部 UAT 或记录 waiver，不得直接归档。
 
 ## 脚本门禁
 
@@ -62,6 +63,7 @@ metadata:
 - 高风险 feature 缺少 `Capability Coverage Matrix` 或归档闭环证据。
 - 固定 checklist 项没有完成或 waiver，包括设计文档同步检查、发布闭环适用性检查。
 - `uat.md` 仍是初始模板、只有泛泛人工验收记录，或缺少核心用户可见路径的人工 UAT/waiver。
+- `state.yaml status: ready_for_uat`，当前断点 UAT 尚未完成或未 waiver。
 - 已触发 `$df-review-loop` 但 `review-findings.yaml` 仍有未处理 P0/P1，包括 `mode: coverage` 的 P1；scope 外 P0/P1 缺少非阻断理由、后续归属或无交叉证据；存在 `uncertain_scope`；或 review 证据缺失且没有明确 waiver/manual_review。
 
 agent 自己写入的 `validation_evidence: 已通过` 只算说明文字，不算通过证据。

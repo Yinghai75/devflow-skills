@@ -1,13 +1,13 @@
 ---
 name: df-fix
-description: "对 DevFlow UAT issue 执行 plan → execute → validate → UAT 闭环；根因清楚时直接修复，根因不清时先调查。用户提到 $df-fix、df-fix、修 UAT issue、修 open issue 时使用；在 $df-uat 中登记 critical/high issue、阻断当前 UAT 的 issue、或用户反馈 UAT 失败后需要改实现时也必须自动使用。"
+description: "对 DevFlow UAT issue 执行 plan → execute → validate → UAT 闭环；根因清楚时按 dispatch_queue 编排修复，根因不清时先调查。用户提到 $df-fix、df-fix、修 UAT issue、修 open issue 时使用；在 $df-uat 中登记 critical/high issue、阻断当前 UAT 的 issue、或用户反馈 UAT 失败后需要改实现时也必须自动使用。"
 metadata:
   short-description: "修复 DevFlow UAT issue"
 ---
 
 # df-fix
 
-围绕当前 feature 的 `issues.yaml` 修复 UAT issue。修复完成不等于最终验收；最后仍需 `$df-accept`。
+围绕当前 feature 的 `issues.yaml` 修复 UAT issue。修复完成不等于当前 UAT 断点通过，也不等于最终验收；修后必须回到同一断点复测，最后仍需 `$df-accept`。
 
 ## 强制接管
 
@@ -17,6 +17,7 @@ metadata:
 - 先读取 open / fixed_pending_retest / needs_retest issue 的当前摘要并确认目标 id；没有目标 id 时只能调查和登记，不能改实现。
 - 已先做补丁但未完成本流程时，不得声明完成；必须补齐 RED、修复验证、门禁、review 和 DevFlow 记录。
 - 本 skill 闭环优先级高于继续 UAT；关闭 issue 后回 `$df-uat` 复测。
+- 若 feature 正处于 `ready_for_uat`，只修当前断点关联的 issue；修复闭环后回同一 UAT 断点复测，不自动推进后续 UAT、后续 DF 或 `$df-accept`。
 
 长 `handoff.md` / `issues.yaml` 采用 scoped reading：`handoff.md` 超过 100 行时先读最新断点、止损区块和目标 issue 相关段落；closed issue 默认只读 id、状态、复测标记、最新证据和 `history_ref`。本 skill 必须读全目标 issue 的当前失败面、最新证据、复测状态和 `history_ref`。
 
@@ -24,7 +25,7 @@ metadata:
 
 读取目标 issue 后，读 `codebase_map/OVERVIEW.md` 和命中模块卡片。改实现前必须在 `issues.yaml` 或 `handoff.md` 最新段落落盘：`map_modules_read`、`fix_lane`、`lane_reason`、`q1_causal_chain`；除 fast-fix 外还要落 `q2_regression_list`、`q3_platform_assumptions`。缺任一项只能调查。
 
-- `fast-fix`：文案、样式、单组件展示、单函数纯逻辑或测试断言补漏，且不命中高风险。只需 1 行 q1、最小 RED、最小修复、targeted test、原子提交、关闭 issue 后回 UAT；验证失败立即升级 scoped-fix 并补 review-loop。
+- `fast-fix`：文案、样式、单组件展示、单函数纯逻辑或测试断言补漏，且不命中高风险。只需 1 行 q1，但仍必须走 `dispatch_queue`；只有满足 `inline_micro_fix` 时才可由主代理直接做最小 RED、最小修复、targeted test、原子提交、关闭 issue 后回 UAT。验证失败立即升级 scoped-fix 并补 review-loop。
 - `scoped-fix`：默认车道，当前 feature 影响面内的受控回归。写回归面清单，同一路径 RED/GREEN，修后跑 targeted test、构建、相关门禁和 `$df-review-loop --uncommitted`。
 - `high-risk-fix`：跨 Dify/插件/Broker/`nas-agent`/`erp-executor`/容器/发布链路、验收口径或职责边界变化、真实浏览器/登录态/外部站点/发布后路径、DOM 猜测/改包/乐观渲染等。默认只调查；确认单点错误后写降级或收窄理由才可窄补丁。
 - `integration-debug`：跨 3+ 运行中组件、同一 issue 已修 2+ 环节仍未关闭、或必须真实浏览器/插件/外部站点验证全链路。只加探针和读运行态快照，定位单一断点后再降级。
@@ -40,7 +41,7 @@ metadata:
 
 `high-risk-fix` 未写 `lane_downgrade_reason` 或 `narrow_patch_reason` 前不得改实现。降级 + 收窄补丁合计不超过 2 次；第 3 次必须止损，用户确认前不得重置。
 
-同一 issue 两次补丁失败、同一方案两次引入新回归、需要第三个 workaround、同一文件/模块在当前 feature 不同 UAT issue 中被修改超过 3 次、或同一 issue 已修过 3 个及以上组件/文件时，立即 checkpoint 并在 `handoff.md` 写 `doom_loop_breaker`。出路只有两个：根因不清切 `integration-debug` 加探针；根因清楚但方案需重设计则回 `$df-plan`。用户确认前流程硬锁。
+同一 issue 两次补丁失败、同一方案两次引入新回归、同一队列项或等价子任务更换子代理后仍连续失败、需要第三个 workaround、同一文件/模块在当前 feature 不同 UAT issue 中被修改超过 3 次、或同一 issue 已修过 3 个及以上组件/文件时，立即 checkpoint 并在 `handoff.md` 写 `doom_loop_breaker`。出路只有两个：根因不清切 `integration-debug` 加探针；根因清楚但方案需重设计则回 `$df-plan`。用户确认前流程硬锁。
 
 高风险链路必须定义不可替代的用户可见 runtime gate。项目或 feature 有专用 gate 时必须执行；不可执行时写明阻断原因和人工替代证据，不得关闭 issue。
 
@@ -50,18 +51,29 @@ metadata:
 2. 读取 `plan.md`、`validation.md`、`uat.md`、`handoff.md`、相关代码和测试，并只读 `plan.md#Capability Coverage Matrix` 中目标 issue 对应行作为 `coverage_reference`。
 3. 找不到对应能力行时，feature lane 或 fix lane 任一为 high-risk 必须暂停，等待用户确认回 `$df-plan`、waiver 或调整 scope；非 high-risk 的 fast/scoped 可按 q1、RED -> GREEN 和回归面关闭。
 4. 来自真实环境、浏览器、插件、外部站点、登录态或发布后路径的 issue，先提取历史 GREEN 验证画像：入口、客户端、登录态/插件状态、样本、环境、最后可用基线、runtime gate。
-5. 先定 RED：纯逻辑用单测；UAT/runtime/跨模块用真实复现、HTTP 探测、容器检查、页面操作或契约 gate。mock 单测只能补防回归。
+5. 先定 RED：纯逻辑用单测；UAT/runtime/跨模块用真实复现、HTTP 探测、容器检查、页面操作或契约 gate。防回归测试必须绑定公共契约或外部可见行为，例如接口返回、错误、持久化状态、UI/运行态可观察变化；mock 只能隔离外部 IO、平台或时间等边界，不得绑定修复内部步骤。
 6. 跨运行中组件时，改代码前确认源码口径与运行态口径一致；不能确认则先记录漂移风险。
-7. 根因明确且未命中止损才修复；根因不清先调查，记录假设、证据和最小复现。
-8. 修后复跑目标 issue 的原始动作链；有 `coverage_reference` 时同步核对失败信号、成功判据和不可替代证据。跨组件还必须复跑 runtime gate，再跑最小自动测试、构建和相关门禁。review 调用 `$df-review-loop --uncommitted`，始终传入 `uat_status: RED`，触发 regression-check-only 模式（1 轮，新 P0/P1 in-scope 立即修，P2 waiver）。
-9. 结论必须区分“运行态已验证”和“仅代码已改”。只有失败信号消失、review P0/P1 已处理或 waiver、门禁通过且关闭条件满足，才可关闭 issue。
-10. 更新 `issues.yaml`、`uat.md`、`state.yaml`、`handoff.md`。`issues.yaml` 只保留当前失败面摘要、状态、最新证据路径、复测标记、`history_ref`；长诊断、review/rework 流水和完整证据写入 `evidence/` 或 `handoff.md`。
-11. 每轮修复尝试后必须 git checkpoint，不等 issue 关闭：通过则原子提交；未通过但已改代码则 stash/WIP commit 并记录 hash；止损则立即 checkpoint。checkpoint 后检查 codebase map 命中模块，涉及接口/状态/职责边界时同步 truth doc 或 module map，行为变更时同步 golden sample。
-12. 关闭 issue 时若仍等用户复测，写 `needs_retest: true` 或 `retest_status: pending`；关闭且复测通过后，下次 `$df-uat` 或登记 issue 前必须 compact 成 stub。
+7. 若修复需要改变 `uat_ready` 断点映射、用户动作链、公共合同、状态归属、跨模块职责或后续 UAT 解锁条件，停止并写入 `handoff.md`，把 `state.yaml status` 写为 `planning`，回 `$df-plan` 做 architecture adjustment；`df-fix` 不负责重新规划断点。
+8. 根因明确且未命中止损才进入执行编排；根因不清先调查，记录假设、证据和最小复现。
+9. 改实现前必须在 `handoff.md` 最新段落建立 `dispatch_queue`：每项写 `task_id`、`fix_lane`、`agent_role`、`write_scope`、`read_scope`、`validation`、`depends_on`、`attempt_count`、`last_failure_summary`、`next_decision` 和关闭条件。`issues.yaml` 只记录队列状态摘要和 `handoff.md` 引用，不承载队列流水。队列为空时不得改代码，除非命中 `inline_micro_fix`。
+10. 按 wave 循环执行：分派边界清晰的定位/补丁/验证任务 -> wait/collect -> 目标动作链或 targeted validation -> review-loop -> 将新 P0/P1 in-scope finding 追加回 `dispatch_queue` -> 下一轮。每轮失败后由主代理更新 `attempt_count` 和 `last_failure_summary`；更换子代理、拆换 `task_id` 或重写 prompt 不得清零同一 issue/同一方案的失败计数。review finding 不得由主代理连续手修。
+11. 修后复跑目标 issue 的原始动作链；有 `coverage_reference` 时同步核对失败信号、成功判据和不可替代证据。跨组件还必须复跑 runtime gate，再跑最小自动测试、构建和相关门禁。review 调用 `$df-review-loop --uncommitted`，始终传入 `uat_status: RED`，触发 regression-check-only 模式（1 轮，新 P0/P1 in-scope 立即回队列，P2 waiver）。
+12. 结论必须区分“运行态已验证”和“仅代码已改”。只有失败信号消失、review P0/P1 已处理或 waiver、门禁通过且关闭条件满足，才可关闭 issue。
+13. 更新 `issues.yaml`、`uat.md`、`state.yaml`、`handoff.md`。`issues.yaml` 只保留当前失败面摘要、状态、最新证据路径、复测标记、`history_ref`；`handoff.md` 只保留当前 wave 的 `dispatch_queue`、当前 UAT 断点、最新失败摘要、止损区块和 evidence 引用；长诊断、review/rework 流水、完整子代理输出和长日志写入 `evidence/` 或对应证据文件。
+14. 每轮修复尝试后必须 git checkpoint，不等 issue 关闭：通过则原子提交；未通过但已改代码则 stash/WIP commit 并记录 hash；止损则立即 checkpoint。checkpoint 后检查 codebase map 命中模块，涉及接口/状态/职责边界时同步 truth doc 或 module map，行为变更时同步 golden sample。
+15. 关闭 issue 时若仍等用户复测，写 `needs_retest: true` 或 `retest_status: pending`；关闭且复测通过后，下次 `$df-uat` 或登记 issue 前必须 compact 成 stub。修复完成后的下一步只能是回 `$df-uat` 复测同一断点；不得自动解锁后续断点。
 
-## 子代理使用
+## 编排与子代理循环
 
-主代理保留 issue 判定、车道分流、q1/q2/q3、止损、关闭 issue、UAT 结论和最终回复；子代理只做边界清楚的定位、窄补丁和验证。`fast-fix` 默认不 spawn；搜索用 `explorer`，明确实现用 `executor`/`worker`，门禁复核用 `verifier`。`high-risk-fix` 未写降级或收窄理由前不得派写业务代码的子代理；`integration-debug` 只能读证据或加探针。当前运行环境若不允许 spawn 子代理，则由主代理按同一边界执行。
+主代理是 issue orchestrator，不是 executor。主代理只保留 issue 判定、车道分流、q1/q2/q3、队列拆分、止损、状态记录、关闭 issue、UAT 结论和最终回复；定位、实现、修复、重构和门禁复核必须进入 `dispatch_queue` 并交给子代理。
+
+`inline_micro_fix` 是唯一内联例外，必须同时满足：≤1 文件、≤10 行、无需搜索定位、不是 review finding、不是真实 UAT/runtime/publish 链路、不是测试/门禁/DSL/插件/发布脚本、未命中 high-risk/integration-debug，并在 `handoff.md` 写 `inline_micro_fix_reason`。`fast-fix` 也不自动内联；不满足这些条件就进队列。
+
+角色分派：搜索/定位/比较/事实收集用 `explorer`；实现/修复/重构用 `executor`，未注册时回退 `worker`；门禁脚本、evidence、runtime 证据和 diff 复核用 `verifier`。`high-risk-fix` 未写降级或收窄理由前不得派写业务代码的子代理；`integration-debug` 只能读证据或加探针。
+
+每轮最多同时分派写入范围不重叠的队列项。子代理运行时，主代理不得读写同一 `write_scope` 或同一验证证据，只能处理不相交的编排、状态和只读证据。默认 `fork_context=false`，handoff 规范见 `~/.codex/policies/subagent_handoff.md`。
+
+当前运行环境若不允许 spawn 子代理，仍不得整块吞掉实现：先按同一 `dispatch_queue` 拆项，记录 `subagent_unavailable_reason`，再逐项顺序执行、逐项验证、逐项 checkpoint。复杂项拆不动或边界不清时回 `$df-plan` 或止损。
 
 ## 返工与重复 issue
 

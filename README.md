@@ -6,7 +6,7 @@
 
 [English](./README.en.md) · **中文**
 
-**个人开发者的轻量 AI 编码工作流：12 个 skills，约 990 行指令，覆盖 feature 计划、执行、AI review、UAT、修复、归档、PR/CI 合并与恢复**
+**个人开发者的轻量 AI 编码工作流：12 个 skills，约 1,000 行指令，覆盖 feature 计划、执行、AI review、UAT、修复、归档、PR/CI 合并与恢复**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
@@ -33,7 +33,7 @@ DevFlow 解决的是一个很窄的问题：
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 个 skills | 1 个 agent 文件 | 约 3,200 行 |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 个 workflows | 33 个 agent 文件 | 约 47,600 行 |
-| **DevFlow** | **12 个 skills** | **5 类精简子代理角色** | **约 990 行** |
+| **DevFlow** | **12 个 skills** | **5 类精简子代理角色** | **约 1,000 行** |
 
 核心取舍：
 
@@ -136,7 +136,9 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 
 没有独立的"verify"阶段。`Capability Coverage Matrix` 是唯一覆盖事实源；coverage verification、coverage review 和 accept audit 都只核验这张矩阵。`df-fix` 只把当前 issue 对应能力行作为只读参考；找不到对应行时，feature lane 或 fix lane 任一为 high-risk 都必须回 `$df-plan`、waiver 或调整 scope，非 high-risk 的 fast/scoped 修复才可按 q1/q2、RED -> GREEN 和回归面收口；不得在修复期补全局矩阵。`verifier` 是 df-execute 和 df-fix 中的子代理角色名，负责执行 validation 门禁、复核 review 证据和运行态证据；AI diff 审查由 `df-review-loop` 统一处理。
 
-`df-plan` 也是 pre-plan discovery 入口，覆盖 new project bootstrap、brownfield、仓内 greenfield 和 architecture adjustment 回流。边界不清时先澄清用户/角色、产品形态、技术栈、架构边界、合同和首个垂直切片；清楚后才写正式计划。`df-plan` 不执行技术栈脚手架，脚手架任务交给 `$df-execute`。
+`df-plan` 也是 pre-plan discovery 入口，覆盖 new project bootstrap、brownfield、仓内 greenfield 和 architecture adjustment 回流。边界不清时先澄清用户/角色、产品形态、技术栈、架构边界、公共接口、公共核心/变体适配层、不变量归属和首个垂直切片；清楚后才写正式计划。正式计划要做压缩版架构自审，避免个性化行为牵动公共核心或重复不变量散落到多个适配层。正式 checklist 默认拆到一次子代理调用可闭合的粒度；超过 1-3 文件或约 100 行净变更的项要拆分，拆不动时标注执行期即时拆解。`df-plan` 不执行技术栈脚手架，脚手架任务交给 `$df-execute`。
+
+分段 UAT-ready 使用混合显式模型：`df-plan` 在 checklist item 上用 `uat_ready` 标注断点，`df-execute` 完成该项机器验证、review 和 checkpoint 后按 `required`/`advisory` 暂停或继续，并用 `ready_for_uat` 作为 `state.yaml.status`。`df-status` 保存断点时保留 handoff 中的队列、当前 UAT 断点和止损信息，也允许在断点解决后清除旧上下文；`df-uat` 只引导当前断点的 UAT 项。当前断点通过且仍有 pending checklist 时状态回到 `ready_for_execute`；全部 DF/UAT 结束后，`df-uat` 先把状态写为 `validated`，再进入 `df-accept`。`df-accept` 会阻断 `ready_for_uat` 状态下的直接归档。人工 UAT 不再写成普通 checklist 执行项。
 
 ---
 
@@ -174,6 +176,8 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 
 找不到证据时只能调查或加 probe，不能直接实现。mock 单测不能证明平台能力存在。
 
+RED 和防回归测试默认绑定公共接口、用户可见行为或外部可观察状态；mock 只用于隔离外部 IO、平台或时间等边界，不能把测试写成对内部 helper 或修复步骤的绑定。
+
 ### 唯一事实源和约束审计
 
 `df-plan` 要求 `checklist.yaml` 和 `validation.md` 中的门禁行为、状态码语义和接口契约使用“脚本路径 + 通过/失败条件行号”的引用格式，避免自然语言复述脚本逻辑。
@@ -200,7 +204,7 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 
 `df-fix` 面向当前 active feature 的 open UAT issue，先分流再改代码：
 
-- **fast-fix**：极小、低风险、根因清楚；可走快速 RED → patch → targeted test → 原子提交。
+- **fast-fix**：极小、低风险、根因清楚；仍必须经过 `dispatch_queue`，只有满足 `inline_micro_fix` 的例外才可由主代理直接 RED → patch → targeted test → 原子提交。
 - **scoped-fix**：默认车道；当前 feature 影响面内的受控回归。
 - **high-risk-fix**：跨 Dify、插件、Broker、`nas-agent`、`erp-executor`、容器、发布链路或真实运行态；默认只能调查，写明收窄理由后才允许单点补丁。
 - **integration-debug**：跨 3+ 运行中组件或同一 issue 多轮多环节仍未关闭；只加探针和读运行态快照，定位单一断点后再降级修复。
@@ -209,7 +213,9 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 
 ### 子代理分派
 
-`df-execute` 默认把主模型 token 留给决策和编排，代码实现交给边界清楚的子代理：
+`df-execute` 默认把主模型 token 留给决策和编排，搜索、实现和门禁验证交给边界清楚的子代理；只有 ≤1 文件、≤10 行、无需搜索定位且不命中运行态/review/门禁/发布链路的 `inline_micro_fix` 可由主代理直接做。超过 3 文件、预计超过 100 行净变更、跨模块或新建+改写混合的 checklist 项，先拆成 2-3 个可独立验证子任务再分派；拆不动或边界不清时回 `$df-plan`。
+
+`dispatch_queue` 必须记录 `attempt_count`、`last_failure_summary` 和 `next_decision`；更换子代理、拆换 task id 或重写 prompt 不得清零同一项/同一方案的失败计数。`handoff.md` 只保留当前 wave、最新失败摘要、止损区块和 evidence 引用，完整子代理输出和长日志写入 `evidence/`。
 
 - 搜索、定位、比较：`explorer`。
 - 实现代码：`executor`，未注册时回退 `worker`。
@@ -226,17 +232,17 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 
 | Skill | 做什么 | 产出什么 |
 | --- | --- | --- |
-| `df-plan` | 启动并规划 feature；必要时先做 new project bootstrap / pre-plan discovery，目标清楚后写计划和 `Capability Coverage Matrix`。 | `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`uat.md`、`state.yaml` |
+| `df-plan` | 启动并规划 feature；必要时先做 new project bootstrap / pre-plan discovery，目标清楚后写架构自审、`Capability Coverage Matrix` 和 UAT 断点策略。 | `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`uat.md`、`state.yaml` |
 | `df-backlog` | 登记不应打断当前 feature 的新事项。 | 更新 `devflow/roadmap.md` |
 | `df-codebase-map` | 维护分层代码地图：OVERVIEW + 命中模块卡片。 | `devflow/shared/codebase_map/` |
 | `df-constraint-audit` | 只读审计门禁描述、状态语义和接口契约是否与事实源漂移。 | 约束问题清单、建议唯一事实源 |
-| `df-execute` | 显式授权后按 checklist 执行，先跑 targeted test，再提交和更新证据，并证明 feature 目标没有漏实现。 | 代码改动、提交、`evidence/manifest.json`、`handoff.md` |
+| `df-execute` | 显式授权后按 checklist 执行，先跑 targeted test，再提交和更新证据，命中 `uat_ready` 断点时停到 `ready_for_uat`。 | 代码改动、提交、`evidence/manifest.json`、`handoff.md` |
 | `df-review-loop` | 用 `codex exec review` 自动审查 diff；实现期轻量发现并后置 P2/P3，UAT RED 时单轮检查新 P0/P1，UAT 全绿后逐 commit 收口；非 Codex 环境写 `tooling_blocked`，不能冒充 PASS。 | `evidence/reviews/`、`review-findings.yaml` |
-| `df-status` | 保存断点，或在新会话恢复当前 feature。 | `handoff.md`、恢复上下文 |
-| `df-uat` | 引导人工 UAT，完整登记本轮反馈和 UAT issue。 | `uat.md`、`issues.yaml` |
-| `df-fix` | 修复 active feature 的 UAT issue，完成 RED、修复、验证、关闭和回归记录。 | 修复提交、issue 关闭记录、验证证据 |
+| `df-status` | 保存断点，或在新会话恢复当前 feature；保存时保留队列、UAT 断点和止损上下文。 | `handoff.md`、恢复上下文 |
+| `df-uat` | 引导当前断点或全量人工 UAT，完整登记本轮反馈和 UAT issue。 | `uat.md`、`issues.yaml` |
+| `df-fix` | 修复 active feature 的 UAT issue，完成 RED、修复、验证、关闭和回到同一断点复测。 | 修复提交、issue 关闭记录、验证证据 |
 | `df-regression` | 处理已归档 feature 的验收后追加回归或新增 UAT issue。 | archive feature 内的 regression issue、证据和关闭记录 |
-| `df-accept` | 最终验收并归档，检查 checklist、UAT、门禁、review 证据、codebase map、truth doc 和 golden set。 | `acceptance.md`、`devflow/archive/` |
+| `df-accept` | 最终验收并归档，检查 checklist、UAT、门禁、review 证据、codebase map、truth doc 和 golden set，并阻断 `ready_for_uat` 直接归档。 | `acceptance.md`、`devflow/archive/` |
 | `df-pr-merge` | 在 `df-accept` 后推送 feature branch，创建或复用 PR，等待 GitHub CI，通过后默认 squash merge 并拉回本地 `main`。 | GitHub PR、CI checks、更新后的本地 `main` |
 
 ---

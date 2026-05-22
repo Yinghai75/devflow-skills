@@ -6,7 +6,7 @@
 
 **English** · [中文](./README.md)
 
-**A lightweight AI coding workflow for individual developers: 12 skills, about 990 instruction lines, covering planning, execution, AI review, UAT, fixes, archival, PR/CI merge, and recovery**
+**A lightweight AI coding workflow for individual developers: 12 skills, about 1,000 instruction lines, covering planning, execution, AI review, UAT, fixes, archival, PR/CI merge, and recovery**
 
 <p>
   <img src="https://img.shields.io/badge/status-beta-F59E0B?style=flat-square" alt="Status"/>
@@ -33,7 +33,7 @@ Rough comparison from current public repositories:
 | --- | --- | --- | --- |
 | [Superpowers](https://github.com/obra/superpowers) | 14 skills | 1 agent file | about 3,200 lines |
 | [GSD](https://github.com/gsd-build/get-shit-done) | 99 workflows | 33 agent files | about 47,600 lines |
-| **DevFlow** | **12 skills** | **5 lightweight sub-agent roles** | **about 990 lines** |
+| **DevFlow** | **12 skills** | **5 lightweight sub-agent roles** | **about 1,000 lines** |
 
 Core tradeoffs:
 
@@ -136,7 +136,9 @@ DevFlow separates verification into distinct concepts, avoiding ambiguity betwee
 
 There is no standalone "verify" stage. `Capability Coverage Matrix` is the single coverage source of truth; coverage verification, coverage review, and accept audit all check that matrix. `df-fix` only uses the row for the current issue as a read-only reference; when no row matches, either a high-risk feature lane or a high-risk fix lane must return to `$df-plan`, waiver, or scope adjustment, while non-high-risk fast/scoped fixes may close via q1/q2, RED -> GREEN, and regression coverage. The global matrix must not be edited during a fix. `verifier` is a sub-agent role name in df-execute and df-fix, responsible for running validation gates and checking review/runtime evidence. AI diff review is handled by `df-review-loop`.
 
-`df-plan` is also the pre-plan discovery entry point, covering new project bootstrap, brownfield work, greenfield work inside an existing repo, and architecture adjustment. When boundaries are unclear, clarify users/roles, product shape, tech stack, architecture boundaries, contracts, and the first vertical slice before writing the formal plan. `df-plan` does not run tech-stack scaffolding; those tasks belong in `$df-execute`.
+`df-plan` is also the pre-plan discovery entry point, covering new project bootstrap, brownfield work, greenfield work inside an existing repo, and architecture adjustment. When boundaries are unclear, clarify users/roles, product shape, tech stack, architecture boundaries, public interfaces, core/adaptor splits, invariant ownership, and the first vertical slice before writing the formal plan. The formal plan includes a compact architecture self-audit so variant-specific behavior does not force changes into the shared core or duplicate invariants across adapters. Formal checklist items should be small enough for one sub-agent call to close; items above 1-3 files or about 100 net changed lines should be split, and items that cannot be split during planning must be marked for execute-time subtask decomposition. `df-plan` does not run tech-stack scaffolding; those tasks belong in `$df-execute`.
+
+Segmented UAT-ready checkpoints use a hybrid explicit model: `df-plan` marks checkpoints on checklist items with `uat_ready`; after machine validation, review, and checkpointing, `df-execute` pauses or continues according to `required` / `advisory`, and uses `ready_for_uat` as the `state.yaml.status`. `df-status` preserves queue, current UAT checkpoint, and stop-loss context from `handoff.md`, and can clear stale context after a checkpoint is resolved; `df-uat` only guides UAT items for the current checkpoint. Once that checkpoint passes and pending checklist items remain, state returns to `ready_for_execute`; after all DF/UAT work is complete, `df-uat` writes `validated` before entering `df-accept`. `df-accept` blocks direct archival while state is `ready_for_uat`. Manual UAT is no longer modeled as a normal checklist execution item.
 
 ---
 
@@ -174,6 +176,8 @@ Accepted evidence is limited to:
 
 If no evidence is found, the agent can only investigate or add probes. Mock tests do not prove that a platform capability exists.
 
+RED and regression tests should bind to public interfaces, user-visible behavior, or externally observable state. Use mocks only to isolate external IO, platforms, or time boundaries; do not bind tests to internal helpers or fix steps.
+
 ### Single Source Of Truth And Constraint Audit
 
 `df-plan` requires gate behavior, status semantics, and interface contracts in `checklist.yaml` and `validation.md` to use references such as script path plus pass/fail line numbers, instead of restating script logic in prose.
@@ -200,7 +204,7 @@ Only after the full feedback round is captured may the agent choose one explicit
 
 `df-fix` handles open UAT issues in the active feature and triages before code changes:
 
-- **fast-fix**: tiny, low-risk, clear root cause; quick RED, patch, targeted test, atomic commit.
+- **fast-fix**: tiny, low-risk, clear root cause; still goes through `dispatch_queue` unless it qualifies for the `inline_micro_fix` exception, in which case the main agent may do RED, patch, targeted test, and atomic commit directly.
 - **scoped-fix**: default lane for controlled regressions inside the current feature scope.
 - **high-risk-fix**: Dify, plugin, Broker, `nas-agent`, `erp-executor`, containers, release paths, or real runtime behavior. It defaults to investigation until a narrow reason is written.
 - **integration-debug**: 3+ live components or repeated multi-hop failures. Add probes and read runtime snapshots first, then downgrade after locating one breakpoint.
@@ -209,7 +213,9 @@ Before code changes, `fix_lane`, `q1_causal_chain`, `q2_regression_list`, and `q
 
 ### Sub-Agent Dispatch
 
-`df-execute` keeps the main model focused on decisions and orchestration while delegating bounded work:
+`df-execute` keeps the main model focused on decisions and orchestration while delegating search, implementation, and gate verification by default. The main agent only handles `inline_micro_fix` changes directly when they are <=1 file, <=10 lines, need no search, and do not touch runtime, review, gate, or release paths. Checklist items above 3 files, expected to exceed 100 net changed lines, cross-module work, or mixed create-and-rewrite work must first be split into 2-3 independently verifiable subtasks; if they cannot be split or the boundary is unclear, return to `$df-plan`.
+
+`dispatch_queue` must record `attempt_count`, `last_failure_summary`, and `next_decision`; switching sub-agents, changing task ids, or rewriting prompts must not reset the failure count for the same item or approach. `handoff.md` keeps only the current wave, latest failure summary, stop-loss block, and evidence references; full sub-agent output and long logs belong in `evidence/`.
 
 - search, localization, comparison: `explorer`;
 - code implementation: `executor`, falling back to `worker`;
@@ -226,17 +232,17 @@ If execution or fixing reveals that module responsibilities, public contracts, s
 
 | Skill | What it does | What it outputs |
 | --- | --- | --- |
-| `df-plan` | Start and plan a feature; when needed, run new project bootstrap / pre-plan discovery before writing plan and the `Capability Coverage Matrix`. | `context.md`, `plan.md`, `checklist.yaml`, `validation.md`, `uat.md`, `state.yaml` |
+| `df-plan` | Start and plan a feature; when needed, run new project bootstrap / pre-plan discovery before writing the architecture self-audit, the `Capability Coverage Matrix`, and the UAT checkpoint strategy. | `context.md`, `plan.md`, `checklist.yaml`, `validation.md`, `uat.md`, `state.yaml` |
 | `df-backlog` | Record later work without interrupting the current feature. | updated `devflow/roadmap.md` |
 | `df-codebase-map` | Maintain the layered code map: OVERVIEW plus matching module cards. | `devflow/shared/codebase_map/` |
 | `df-constraint-audit` | Read-only audit for drift between gate descriptions, status semantics, contracts, and facts. | constraint findings and source-of-truth recommendations |
-| `df-execute` | Execute checklist items after explicit authorization, run targeted tests first, then commit and update evidence, while proving the feature goal has no missing implementation. | code changes, commits, `evidence/manifest.json`, `handoff.md` |
+| `df-execute` | Execute checklist items after explicit authorization, run targeted tests first, then commit and update evidence, pausing at `ready_for_uat` when a `uat_ready` checkpoint is reached. | code changes, commits, `evidence/manifest.json`, `handoff.md` |
 | `df-review-loop` | Use `codex exec review` to review diffs; keep execute-time review lightweight, run one-pass UAT-fix regression checks for new P0/P1, and close deferred findings commit-by-commit after UAT is green; non-Codex environments write `tooling_blocked` instead of claiming PASS. | `evidence/reviews/`, `review-findings.yaml` |
-| `df-status` | Save a handoff or restore the current feature in a new session. | `handoff.md`, restored context |
-| `df-uat` | Guide manual UAT and capture the full feedback round. | `uat.md`, `issues.yaml` |
-| `df-fix` | Fix active feature UAT issues through RED, patch, validation, closure, and regression notes. | fix commits, issue closure records, validation evidence |
+| `df-status` | Save a handoff or restore the current feature in a new session; saving preserves queue, UAT checkpoint, and stop-loss context. | `handoff.md`, restored context |
+| `df-uat` | Guide current-checkpoint or full manual UAT and capture the full feedback round. | `uat.md`, `issues.yaml` |
+| `df-fix` | Fix active feature UAT issues through RED, patch, validation, closure, and retesting at the same checkpoint. | fix commits, issue closure records, validation evidence |
 | `df-regression` | Handle post-acceptance regressions or new UAT issues for archived features. | regression issues, evidence, closure records in the archive feature |
-| `df-accept` | Final acceptance and archival, checking checklist, UAT, gates, review evidence, codebase map, truth docs, and golden sets. | `acceptance.md`, `devflow/archive/` |
+| `df-accept` | Final acceptance and archival, checking checklist, UAT, gates, review evidence, codebase map, truth docs, golden sets, and blocking direct archival from `ready_for_uat`. | `acceptance.md`, `devflow/archive/` |
 | `df-pr-merge` | After `df-accept`, push the feature branch, create or reuse a PR, wait for GitHub CI, then squash merge and pull local `main` back. | GitHub PR, CI checks, updated local `main` |
 
 ---
