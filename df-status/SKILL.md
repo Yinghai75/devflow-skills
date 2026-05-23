@@ -1,6 +1,6 @@
 ---
 name: df-status
-description: "保存或恢复 DevFlow 当前 feature 断点；df-status 默认写 handoff.md，df-status -r 在 /new 后恢复上下文。用户提到 $df-status、df-status、DevFlow 状态或恢复时使用。"
+description: "用户提到 $df-status、df-status、保存断点、恢复 DevFlow 上下文或 /new 后恢复时使用。"
 metadata:
   short-description: "保存/恢复 DevFlow 断点"
 ---
@@ -32,7 +32,15 @@ metadata:
 
 `uv run python /Users/yinghai/.codex/local/devflow/devflow_cli.py --repo <repo> status -r`
 
-然后读取输出中的 feature 目录，并补读 `context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`issues.yaml`。若存在 `review-findings.yaml`，同时读取其 `review_loop_status`、未处理 P0/P1 和 waiver/manual_review 记录。
+然后读取输出中的 feature 目录和 `state.yaml`，按 `state.yaml.status` 分级补读：
+
+- `planning`：`context.md`、`plan.md`、`checklist.yaml`。
+- `planned` / `ready_for_execute`：上述文件 + `validation.md`。
+- `executing`：上述文件 + `validation.md`；存在 `uat_ready` 断点时加 `uat.md`。
+- `ready_for_uat`：`context.md`、`plan.md`、`checklist.yaml`、`validation.md`、`uat.md`、`issues.yaml`。
+- `validated`：全部正式产物。
+
+若存在 `review-findings.yaml`，同时读取其 `review_loop_status`、未处理 P0/P1 和 waiver/manual_review 记录。
 
 若 `handoff.md` 包含已保留的执行上下文，恢复时以其中的 `dispatch_queue`、当前 UAT 断点和止损信息为准；不要仅凭最新摘要推断下一步。
 

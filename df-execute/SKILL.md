@@ -1,6 +1,6 @@
 ---
 name: df-execute
-description: "执行当前 DevFlow feature 的 checklist，并从目标反推覆盖缺口：按计划实现、更新 state.yaml/checklist.yaml/handoff.md，默认按分派矩阵使用精简子代理池处理边界清晰任务。用户提到 $df-execute、df-execute、DevFlow 执行时使用。"
+description: "用户提到 $df-execute、df-execute、DevFlow 执行、按 checklist 做、继续执行或全自动推进时使用。"
 metadata:
   short-description: "执行 DevFlow checklist"
 ---
@@ -42,6 +42,7 @@ metadata:
 9. 每个可独立验证项必须 git checkpoint：通过则只暂存相关文件做原子提交；失败但已改代码则 stash/WIP commit 并记录 hash；命中止损则立即 checkpoint。
 10. checkpoint 后检查修改路径是否命中 codebase map；命中则只刷新相关模块卡片，刷新前的只读定位可交给 `explorer`。涉及接口、状态归属或职责边界时同步 truth doc 或 module map；行为变更时同步 golden sample。修改门禁脚本、状态码语义或接口契约后，清理 checklist / validation / handoff / issues 中重复或漂移描述。
 11. 每个 checklist item 完成机器验证、review-loop、checkpoint 和必要文档同步后，检查该项是否有 `uat_ready`：
+    - 先做断点能力闭合检查：当前 `uat_ready.uat_items` 的入口是否已存在，用户动作链是否已实现，期望结果是否可由真实 UI/API/外部客户端观察。任一为否时，不得写 `ready_for_uat`；在 `handoff.md` 写 `plan_gap` 或 `execution_gap`，说明缺的能力、受影响 UAT 和下一步应回 `$df-plan` 还是继续当前项修实现。
     - `level: required`：立即暂停，不继续后续 DF；写 `state.yaml status: ready_for_uat`，在 `handoff.md` 写当前断点、对应 `uat_items`、已完成证据、下一步 `$df-uat` 和后续 pending DF。
     - `level: advisory`：普通 `$df-execute` 下同样暂停并建议 UAT；用户本轮明确“全自动推进”时，可在 `handoff.md` 记录越过理由、断点 UAT 编号和残余风险后继续。
     - 缺少 `level`、`uat_items` 或 `reason` 时视为计划缺口；暂停并回 `$df-plan` 补断点映射。
@@ -62,6 +63,7 @@ checklist 全部完成后，宣称“可进入 `$df-uat`”前，必须从 featu
 - 每个矩阵行都有实现、机器验证证据、UAT 项或明确 waiver。
 - `fast` 行只要求用户可见能力和实现项闭合；`standard` 行要求实现项、validation、UAT 闭合；`high-risk` 行逐列闭合或 waiver。
 - 每条 UAT 项能回指同一矩阵行；不能只有计划文字、smoke test 或 review PASS。
+- `plan.md#目标` 中每个目标能力都能由已实现能力和一个或多个非 waiver UAT 覆盖；若所有 UAT 通过后仍不能证明目标完成，必须记录覆盖缺口并回 `$df-plan`，不得宣称可验收。
 - 普通 code review PASS 不能代表 coverage PASS；必要时运行 `$df-review-loop` 的 coverage review mode 或等价覆盖审查。
 - Aggregate review（`--base`）只在 UAT 全绿且无 open issue 后做一次；UAT 仍有 open/needs_retest issue 时，不启动 aggregate review。
 - `handoff.md` 写明覆盖核对结论。缺口非空时不得写 `state.yaml status: ready_for_uat`，只报告缺口和下一步选项。

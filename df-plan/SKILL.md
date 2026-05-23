@@ -1,6 +1,6 @@
 ---
 name: df-plan
-description: "启动并规划 DevFlow feature：分诊车道、创建 feature 目录，必要时先做 pre-plan discovery 澄清产品形态、架构边界、公共接口、合同和垂直切片，再编写 plan.md/checklist.yaml/validation.md/uat.md。用户提到 $df-plan、df-plan、DevFlow 开始任务、DevFlow 计划时使用。"
+description: "用户提到 $df-plan、df-plan、DevFlow 开始任务、DevFlow 计划、architecture adjustment 或规划回流时使用。"
 metadata:
   short-description: "启动并规划 DevFlow feature"
 ---
@@ -82,6 +82,8 @@ checklist 粒度指导：每个 checklist 项应可由一次子代理调用闭�
 - `standard`：必填用户可见能力、实现项、validation、UAT 项；下游成功判据、失败信号、不可替代证据按风险填写。
 - `high-risk`：每行必须包含用户可见能力、用户动作链、下游成功判据、失败信号、实现项、validation、UAT 项、UAT 断点、不可替代证据、waiver/残余风险。
 
+矩阵必须回答两个闭合问题：执行到每个 `UAT 断点` 时，是否已经具备对应 UAT 的真实能力；所有非 waiver UAT 串起来，是否足以证明 `plan.md#目标` 已完成。任一问题为否时，必须补 checklist / validation / UAT，缩小目标，或写明确 waiver；高风险核心能力只有 waiver 时不得建议执行或验收。
+
 矩阵只在 `df-plan` 或明确 architecture adjustment 回流时修改。`df-execute` / `df-fix` 发现缺口时，只能写入 `handoff.md` 等待用户决定，不得顺手补全局矩阵。
 
 standard/high-risk 计划必须在矩阵中包含 `UAT 断点`列，写明哪个 checklist item 完成后进入对应 UAT；fast 可写 N/A。推荐写法是 `CP-x / checklist.yaml:DF-xxx -> UAT-xxx`，其中 `CP-x` 只是人工阅读标签，真正执行绑定仍是 checklist item 的 `uat_ready`。这仍属于同一张 `Capability Coverage Matrix`，不得另建 closure/verify/UAT breakpoint 矩阵。
@@ -98,6 +100,7 @@ standard/high-risk feature 只要涉及 UI、真实用户路径、外部数据�
 
 - 每个断点绑定一个已存在的 checklist item；不要新建“人工 UAT” checklist item。
 - 每个 UAT 项必须绑定最早可人工验收的 checklist item；若 DF 项太粗导致无法早验收，必须拆 DF 项或写 waiver。
+- `uat_ready` 不是“可以让用户看看”，而是“执行到这里时，已具备对应 UAT 的入口、用户动作链和期望结果”。若 UAT 依赖真实浏览器、插件、外部系统、人工回填或回流，这些工程能力必须在断点前完成，不能写成后续补。
 - 首个用户可见工作台、入口、主动作或输出雏形出现时，优先设置早期 `advisory` 或 `required` 断点，不能等全链路规则完成后才首次 UAT。
 - 对应 checklist item 写 `uat_ready`，最小字段为 `level`、`uat_items`、`reason`。`level` 只能是 `required` 或 `advisory`；`uat_items` 指向一个或多个 UAT 编号；`reason` 写为什么此处值得停。
 - `required` 表示 `$df-execute` 完成该项的机器验证、review-loop 和 checkpoint 后必须停到 `state.yaml status: ready_for_uat`。
@@ -106,6 +109,8 @@ standard/high-risk feature 只要涉及 UI、真实用户路径、外部数据�
 - 推荐断点阶梯：工作台/入口可见 -> 批量输入或主输入解析可试 -> 外部数据源/真实查询可见 -> 折扣、价格、状态等业务规则可验 -> 人工介入闭环可验 -> 正式输出物或确认动作可验 -> 持久化、安全、集成收口。
 - 无断点的 feature 保持旧语义：执行期可连续完成所有 pending/in_progress checklist，再进入整体 `$df-uat`。
 - 状态词统一使用 `ready_for_uat`；`uat_ready` 只作为 checklist item 的断点元数据，不得作为 `state.yaml.status`。
+
+UAT 文案必须能证明能力，不得写成“确认功能正常”“入口可用”“显示合理”“必要时人工处理”“等效验证”“后续补充真实验证”或“mock 可替代真实路径”这类虚验收。若计划里所有 UAT 通过后仍不能说明 feature 目标完成，必须继续补 UAT 或回到目标边界，不得把计划交给执行。
 
 高风险任务在 `validation.md` 写清 Impact Map、Protected Surfaces、Gate Selection、Golden Set Delta、TDD/RED Evidence、Waiver。可用脚本辅助推荐门禁：
 `uv run python /Users/yinghai/.codex/local/devflow/devflow_cli.py --repo <repo> gates --surfaces "dify,state-machine,login"`

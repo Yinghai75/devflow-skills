@@ -138,7 +138,7 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 
 `df-plan` 也是 pre-plan discovery 入口，覆盖 new project bootstrap、brownfield、仓内 greenfield 和 architecture adjustment 回流。边界不清时先澄清用户/角色、产品形态、技术栈、架构边界、公共接口、公共核心/变体适配层、不变量归属和首个垂直切片；清楚后才写正式计划。正式计划要做压缩版架构自审，避免个性化行为牵动公共核心或重复不变量散落到多个适配层。正式 checklist 默认拆到一次子代理调用可闭合的粒度；超过 1-3 文件或约 100 行净变更的项要拆分，拆不动时标注执行期即时拆解。`df-plan` 不执行技术栈脚手架，脚手架任务交给 `$df-execute`。
 
-分段 UAT-ready 使用混合显式模型：`df-plan` 在 checklist item 上用 `uat_ready` 标注断点，`df-execute` 完成该项机器验证、review 和 checkpoint 后按 `required`/`advisory` 暂停或继续，并用 `ready_for_uat` 作为 `state.yaml.status`。`df-status` 保存断点时保留 handoff 中的队列、当前 UAT 断点和止损信息，也允许在断点解决后清除旧上下文；`df-uat` 只引导当前断点的 UAT 项。当前断点通过且仍有 pending checklist 时状态回到 `ready_for_execute`；全部 DF/UAT 结束后，`df-uat` 先把状态写为 `validated`，再进入 `df-accept`。`df-accept` 会阻断 `ready_for_uat` 状态下的直接归档。人工 UAT 不再写成普通 checklist 执行项。
+分段 UAT-ready 使用混合显式模型：`df-plan` 在 checklist item 上用 `uat_ready` 标注断点，`df-execute` 完成该项机器验证、review 和 checkpoint 后按 `required`/`advisory` 暂停或继续，并用 `ready_for_uat` 作为 `state.yaml.status`。`uat_ready` 断点必须已经具备对应 UAT 的入口、用户动作链和期望结果；所有非 waiver UAT 通过后必须能共同证明 `plan.md#目标` 的 feature 能力完成。`df-status` 保存断点时保留 handoff 中的队列、当前 UAT 断点和止损信息，也允许在断点解决后清除旧上下文；恢复时按 `state.yaml.status` 分级补读正式产物，避免无差别重载全量文件。`df-uat` 只引导当前断点的 UAT 项。当前断点通过且仍有 pending checklist 时状态回到 `ready_for_execute`；全部 DF/UAT 结束后，`df-uat` 先把状态写为 `validated`，再进入 `df-accept`。`df-accept` 会阻断 `ready_for_uat` 状态下的直接归档。人工 UAT 不再写成普通 checklist 执行项。
 
 ---
 
@@ -150,7 +150,7 @@ DevFlow 把验证分为几个不同概念，避免 verify / validate / review �
 
 ### Runtime helper 与 issue 压缩
 
-`runtime/devflow_cli.py` 和 `runtime/pr_ci_merge.py` 是本仓库发布的确定性 helper 正本；本机副本位于 `~/.codex/local/devflow/`。`df-uat` 开始阶段和登记 issue 前的分层硬阻断由 `compact-issues` 执行，已关闭/延后 issue 和 legacy `REVIEW-*` 历史迁移到 feature-local `evidence/`，活跃 `issues.yaml` 只保留当前工作集和 `history_ref`。
+`runtime/devflow_cli.py` 和 `runtime/pr_ci_merge.py` 是本仓库发布的确定性 helper 正本；本机副本位于 `~/.codex/local/devflow/`。`df-uat` 开始阶段和登记 issue 前的分层硬阻断由 `compact-issues` 执行，已关闭/延后 issue 和 legacy `REVIEW-*` 历史迁移到 feature-local `evidence/`，活跃 `issues.yaml` 只保留当前工作集和 `history_ref`。`handoff.md` 保存时保留完整恢复所需的队列、短卡片、断点和止损段；`evidence/manifest.json` 对同一 gate/status 只保留最后一条记录，避免门禁历史无限膨胀；归档脚本按每个 gate 的最新记录判断当前通过/失败。
 
 ### 分层 codebase map
 
@@ -200,6 +200,8 @@ RED 和防回归测试默认绑定公共接口、用户可见行为或外部可�
 
 只有本轮反馈全部入账后，才允许选择一个明确 issue id 进入 `df-fix`。
 
+转入 `df-fix` 前，`df-uat` 会在 `handoff.md` 写不超过 20 行的 `fix_context_card`，只放目标 issue、失败面、当前断点、矩阵引用、复现和 UAT 进度。`df-fix` 启动时先读这张短卡片，再按需补读目标 issue 和对应矩阵行。
+
 ### df-fix 分流和止损
 
 `df-fix` 面向当前 active feature 的 open UAT issue，先分流再改代码：
@@ -238,7 +240,7 @@ RED 和防回归测试默认绑定公共接口、用户可见行为或外部可�
 | `df-constraint-audit` | 只读审计门禁描述、状态语义和接口契约是否与事实源漂移。 | 约束问题清单、建议唯一事实源 |
 | `df-execute` | 显式授权后按 checklist 执行，先跑 targeted test，再提交和更新证据，命中 `uat_ready` 断点时停到 `ready_for_uat`。 | 代码改动、提交、`evidence/manifest.json`、`handoff.md` |
 | `df-review-loop` | 用 `codex exec review` 自动审查 diff；实现期轻量发现并后置 P2/P3，UAT RED 时单轮检查新 P0/P1，UAT 全绿后逐 commit 收口；非 Codex 环境写 `tooling_blocked`，不能冒充 PASS。 | `evidence/reviews/`、`review-findings.yaml` |
-| `df-status` | 保存断点，或在新会话恢复当前 feature；保存时保留队列、UAT 断点和止损上下文。 | `handoff.md`、恢复上下文 |
+| `df-status` | 保存断点，或在新会话恢复当前 feature；保存时保留队列、UAT 断点和止损上下文，恢复时按状态分级补读。 | `handoff.md`、恢复上下文 |
 | `df-uat` | 引导当前断点或全量人工 UAT，完整登记本轮反馈和 UAT issue。 | `uat.md`、`issues.yaml` |
 | `df-fix` | 修复 active feature 的 UAT issue，完成 RED、修复、验证、关闭和回到同一断点复测。 | 修复提交、issue 关闭记录、验证证据 |
 | `df-regression` | 处理已归档 feature 的验收后追加回归或新增 UAT issue。 | archive feature 内的 regression issue、证据和关闭记录 |

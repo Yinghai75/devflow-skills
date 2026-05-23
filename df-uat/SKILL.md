@@ -1,6 +1,6 @@
 ---
 name: df-uat
-description: "引导当前 DevFlow feature 的人工 UAT，并把验收中发现的问题记录为 issues.yaml 条目；用于 UAT 验收与问题闭环。用户提到 $df-uat、df-uat、人工验收、记录验收问题时使用。"
+description: "用户提到 $df-uat、df-uat、人工验收、记录验收问题、UAT 反馈 intake 或复测时使用。"
 metadata:
   short-description: "记录 DevFlow UAT issue"
 ---
@@ -14,9 +14,9 @@ metadata:
 ## 流程
 
 1. 读取 active feature。
-2. 读取 `uat.md`、`acceptance.md`、`validation.md`、`handoff.md`、`state.yaml`，提取待人工验收项、已完成证据、waiver、当前 UAT 断点和当前阻塞项；长 `handoff.md` / `issues.yaml` 采用 scoped reading，但当前断点、当前 UAT 项、阻断 issue 和最新证据必须读全。
+2. 读取 `uat.md`、`acceptance.md`、`validation.md`、`handoff.md`、`state.yaml`，提取待人工验收项、已完成证据、waiver、当前 UAT 断点和当前阻塞项。`uat.md` scoped reading：有当前断点时，只读该断点 `uat_items` 的详情，其他项只读 id + 状态摘要；无断点时，只读未完成项详情，已通过项只读 id + 状态摘要；覆盖审计只核对每项是否存在和状态，不读详细描述。长 `handoff.md` / `issues.yaml` 同样采用 scoped reading，但当前断点、当前 UAT 项、阻断 issue 和最新证据必须读全。
 3. 开始 UAT 前先检查活跃 `issues.yaml`：closed/deferred issue 达到 3 个及以上，或长历史主要来自 closed/deferred issue 时，必须先运行 `uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`，校验 YAML 可解析，确认 open / fixed_pending_retest / needs_retest 未被压缩，并确认下一个 UAT id 不会与活跃或历史 id 冲突。若 open/retest issue 本身超过 50 行，不得先 compact；只读当前摘要、最新证据和 `history_ref` 后继续 intake。
-4. 先做 UAT 覆盖审计，确认每个 UAT 项都能回指 `plan.md#capability-coverage-matrix` 的用户动作链、下游成功判据、失败信号和不可替代证据。若当前 `state.yaml status: ready_for_uat` 或 `handoff.md` 写有当前断点，本轮只引导该断点 `uat_items`；不得提前推进后续断点或全量 UAT。没有当前断点时，才按顺序引导所有未完成 UAT。每次只给 1-3 个明确操作步骤，并说明期望看到的结果。
+4. 先做 UAT 覆盖审计，确认每个 UAT 项都能回指 `plan.md#capability-coverage-matrix` 的用户动作链、下游成功判据、失败信号和不可替代证据。若当前 UAT 的入口、用户动作链或可观察结果在实现与证据中根本不存在，停止引导，在 `handoff.md` 记录 `plan_gap` 或 `execution_gap`，提示回 `$df-plan` 或 `$df-fix`；不得带用户做假 UAT。若当前 `state.yaml status: ready_for_uat` 或 `handoff.md` 写有当前断点，本轮只引导该断点 `uat_items`；不得提前推进后续断点或全量 UAT。没有当前断点时，才按顺序引导所有未完成 UAT。每次只给 1-3 个明确操作步骤，并说明期望看到的结果。
 5. 若验收项涉及真实浏览器、真实客户端、本机插件、外部站点、登录态、设备态、账号态或本地缓存/会话，先从已有文档和证据提取"验证画像"：
    - 入口路径：用户如何进入该能力，是手动打开、系统跳转、脚本拉起还是页面内继续操作。
    - 客户端画像：浏览器/客户端品牌、channel、是否真实用户窗口。
@@ -79,7 +79,7 @@ metadata:
 - 当前断点来源只读 `state.yaml`、`handoff.md` 和 checklist item 的 `uat_ready` 元数据；`df-uat` 不规划新断点，不重排 `uat_items`。
 - 当前断点 UAT 全部通过或 waiver，且仍有 pending / in_progress checklist item 时，把 `state.yaml status` 写回 `ready_for_execute`，用 `df-status --clear-context` 保存 handoff，写明已通过的 `uat_items` 和下一条 pending DF，并提示用户继续 `$df-execute`。
 - 当前断点 UAT 全部通过或 waiver，且 checklist 已全部 done/waived、所有 UAT 均完成且无 open/retest issue 时，先把 `state.yaml status` 从 `ready_for_uat` 写为 `validated`，用 `df-status --clear-context` 保存 handoff，写明当前 UAT 断点已清除、全部 `uat_items` 已通过或 waiver，再提示进入 `$df-accept`。
-- 当前断点关联的 issue 存在 open、`fixed_pending_retest`、`needs_retest: true` 或 `retest_status: pending` 时，不得把状态写回 `ready_for_execute`，按严重度进入 `$df-fix <issue-id>` 或继续补当前断点证据。`checkpoint_scope: future_checkpoint` 且 `uat_items` 不属于当前断点的 issue 不阻断当前断点通过，但必须保留到对应后续断点；缺少 scope 的 open/retest issue 默认按当前断点阻断处理。
+- 断点通过判定：`issue.status in {open, fixed_pending_retest}` -> 阻断；`needs_retest: true` -> 阻断；`retest_status: pending` -> 阻断；`checkpoint_scope: future_checkpoint` 且 `uat_items` 不属于当前断点 -> 不阻断但保留到后续断点；缺少 scope 的 open/retest issue -> 默认阻断；其他情况才可通过。阻断时按严重度进入 `$df-fix <issue-id>` 或继续补当前断点证据。
 - 旧 feature 没有 `uat_ready` 断点时保持原语义：按 `uat.md` 顺序引导全部人工 UAT，全绿后提示 `$df-accept`。
 
 ## 本轮反馈 intake 硬闸
@@ -106,6 +106,10 @@ metadata:
 - `$df-uat` 本身只允许读取证据、引导复测、登记 issue、更新 UAT 记录；实现代码、工作流、服务配置改动必须发生在 `$df-fix`。
 - 进入 `$df-fix` 前必须给用户一句状态切换说明，并列出本轮已登记/续写/重开的 issue 清单，例如"本轮反馈已全部登记：UAT-001、UAT-002；现在按 df-fix 修复 UAT-001"；随后按 `df-fix` 的强制接管规则执行。
 
+### fix_context_card
+
+进入 `$df-fix` 前，必须在 `handoff.md` 写入或替换唯一的 `## fix_context_card`，不超过 20 行。最少包含 `target_issue`、`severity`、`failure_surface`、`current_breakpoint`、`coverage_matrix_row` 或 `coverage_reference`、`reproduction`、`uat_progress`，可选写 `causal_hint` 和 `affected_files`。未知字段写 `unknown`；不得为补卡片重读全量长文件。
+
 ## 引导原则
 
 - 待验证项不等于 issue；只有用户反馈异常或证据缺失时才登记。用户说"通过"则继续下一项，说"不知道怎么验"则给更具体步骤。
@@ -115,9 +119,9 @@ metadata:
 
 ## UAT 覆盖审计
 
-开始引导前，交叉检查 `plan.md#capability-coverage-matrix`、`checklist.yaml`、`validation.md`、`handoff.md`、`issues.yaml` 与 `uat.md`，确认每个用户可见能力和真实运行路径都有对应 UAT 项，且 UAT 操作步骤与矩阵里的用户动作链、下游成功判据、失败信号一致。
+开始引导前，交叉检查 `plan.md#capability-coverage-matrix`、`checklist.yaml`、`validation.md`、`handoff.md`、`issues.yaml` 与 `uat.md`，确认每个用户可见能力和真实运行路径都有对应 UAT 项，且 UAT 操作步骤与矩阵里的用户动作链、下游成功判据、失败信号一致。当前断点只要求当前 UAT 对应能力已经真实存在；所有 UAT 全部通过后，才要求它们合起来覆盖 `plan.md#目标`。
 
-必须先补 `uat.md` 再继续引导的情况：`uat.md` 仍是初始模板；用户可见能力只有机器证据没有人工 UAT 项；涉及真实浏览器/官网/插件/Dify 发布/ERP 写入的路径没有真实环境 UAT 项；已关闭 issue 没有复测记录；高风险能力没写清验证画像。
+必须先补 `uat.md` 再继续引导的情况：`uat.md` 仍是初始模板；用户可见能力只有机器证据没有人工 UAT 项；涉及真实浏览器/官网/插件/Dify 发布/ERP 写入的路径没有真实环境 UAT 项；已关闭 issue 没有复测记录；高风险能力没写清验证画像；UAT 只写“确认正常”“入口可用”“显示合理”等无法证明能力的虚验收。
 
 补项时只补同一 `Capability Coverage Matrix` 对应的 UAT 项，写清操作步骤、期望结果、失败信号和不可替代证据；高风险项同时写最小验证画像（入口、客户端、profile/登录态、目标环境、样本）。机器证据不替代人工 UAT 通过。用户明确不做某项时记录 waiver 和残余风险；高风险核心能力 waiver 后不得建议 `$df-accept`。前置核心路径的缺口优先引导。
 

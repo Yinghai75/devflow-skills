@@ -1,6 +1,6 @@
 ---
 name: df-fix
-description: "对 DevFlow UAT issue 执行 plan → execute → validate → UAT 闭环；根因清楚时按 dispatch_queue 编排修复，根因不清时先调查。用户提到 $df-fix、df-fix、修 UAT issue、修 open issue 时使用；在 $df-uat 中登记 critical/high issue、阻断当前 UAT 的 issue、或用户反馈 UAT 失败后需要改实现时也必须自动使用。"
+description: "用户提到 $df-fix、df-fix、修 UAT issue、修 open issue 时使用；在 $df-uat 中登记 critical/high issue、阻断当前 UAT 的 issue、或用户反馈 UAT 失败后需要改实现时也必须自动使用。"
 metadata:
   short-description: "修复 DevFlow UAT issue"
 ---
@@ -13,6 +13,7 @@ metadata:
 
 - 当前 feature 存在 open UAT issue 时，禁止“顺手修”；必须进入本 skill。
 - 从 `$df-uat` 转修前，必须完成本轮反馈 intake 并明确 issue id；用户要求修刚登记的问题时切到 `$df-fix <issue-id>`。
+- 启动时先读 `handoff.md` 中最新且唯一的 `fix_context_card`（如存在）；按需再补读 `issues.yaml` 中目标 issue 的完整条目，以及 `plan.md` 中 `coverage_matrix_row` / `coverage_reference` 对应行。短卡片只用于定向读取，不能替代目标 issue 正本。
 - 读取 `issues.yaml` 前先执行 compact 前置检查：closed/deferred issue 达到 3 个及以上，或长历史主要来自 closed/deferred issue 时，运行 `uv run python ~/.codex/local/devflow/devflow_cli.py --repo <repo> compact-issues`，再确认 YAML 可解析、open/retest issue 未被压缩、下一个 UAT id 不冲突。若目标 open/retest issue 本身超过 50 行，不得先 compact；只读当前摘要、最新证据和 `history_ref` 后继续修复。
 - 先读取 open / fixed_pending_retest / needs_retest issue 的当前摘要并确认目标 id；没有目标 id 时只能调查和登记，不能改实现。
 - 已先做补丁但未完成本流程时，不得声明完成；必须补齐 RED、修复验证、门禁、review 和 DevFlow 记录。
@@ -24,6 +25,14 @@ metadata:
 ## 车道分流
 
 读取目标 issue 后，读 `codebase_map/OVERVIEW.md` 和命中模块卡片。改实现前必须在 `issues.yaml` 或 `handoff.md` 最新段落落盘：`map_modules_read`、`fix_lane`、`lane_reason`、`q1_causal_chain`；除 fast-fix 外还要落 `q2_regression_list`、`q3_platform_assumptions`。缺任一项只能调查。
+
+车道判定：
+
+- IF 真实运行态、发布链路或跨职责边界 -> `high-risk-fix`。
+- IF 跨 3 个及以上运行中组件，或多轮多环节未闭合 -> `integration-debug`。
+- IF 低风险单点且根因清楚 -> `fast-fix`。
+- IF 含未验证平台或合同假设 -> 不得进入 fast/scoped 实现。
+- ELSE -> `scoped-fix`。
 
 - `fast-fix`：文案、样式、单组件展示、单函数纯逻辑或测试断言补漏，且不命中高风险。只需 1 行 q1，但仍必须走 `dispatch_queue`；只有满足 `inline_micro_fix` 时才可由主代理直接做最小 RED、最小修复、targeted test、原子提交、关闭 issue 后回 UAT。验证失败立即升级 scoped-fix 并补 review-loop。
 - `scoped-fix`：默认车道，当前 feature 影响面内的受控回归。写回归面清单，同一路径 RED/GREEN，修后跑 targeted test、构建、相关门禁和 `$df-review-loop --uncommitted`。

@@ -138,7 +138,7 @@ There is no standalone "verify" stage. `Capability Coverage Matrix` is the singl
 
 `df-plan` is also the pre-plan discovery entry point, covering new project bootstrap, brownfield work, greenfield work inside an existing repo, and architecture adjustment. When boundaries are unclear, clarify users/roles, product shape, tech stack, architecture boundaries, public interfaces, core/adaptor splits, invariant ownership, and the first vertical slice before writing the formal plan. The formal plan includes a compact architecture self-audit so variant-specific behavior does not force changes into the shared core or duplicate invariants across adapters. Formal checklist items should be small enough for one sub-agent call to close; items above 1-3 files or about 100 net changed lines should be split, and items that cannot be split during planning must be marked for execute-time subtask decomposition. `df-plan` does not run tech-stack scaffolding; those tasks belong in `$df-execute`.
 
-Segmented UAT-ready checkpoints use a hybrid explicit model: `df-plan` marks checkpoints on checklist items with `uat_ready`; after machine validation, review, and checkpointing, `df-execute` pauses or continues according to `required` / `advisory`, and uses `ready_for_uat` as the `state.yaml.status`. `df-status` preserves queue, current UAT checkpoint, and stop-loss context from `handoff.md`, and can clear stale context after a checkpoint is resolved; `df-uat` only guides UAT items for the current checkpoint. Once that checkpoint passes and pending checklist items remain, state returns to `ready_for_execute`; after all DF/UAT work is complete, `df-uat` writes `validated` before entering `df-accept`. `df-accept` blocks direct archival while state is `ready_for_uat`. Manual UAT is no longer modeled as a normal checklist execution item.
+Segmented UAT-ready checkpoints use a hybrid explicit model: `df-plan` marks checkpoints on checklist items with `uat_ready`; after machine validation, review, and checkpointing, `df-execute` pauses or continues according to `required` / `advisory`, and uses `ready_for_uat` as the `state.yaml.status`. A `uat_ready` checkpoint must already provide the entrypoint, user action chain, and expected result for its UAT items; all non-waived UAT items together must prove the feature capability promised in `plan.md#目标`. `df-status` preserves queue, current UAT checkpoint, and stop-loss context from `handoff.md`, can clear stale context after a checkpoint is resolved, and restores formal artifacts by `state.yaml.status` instead of reading everything by default. `df-uat` only guides UAT items for the current checkpoint. Once that checkpoint passes and pending checklist items remain, state returns to `ready_for_execute`; after all DF/UAT work is complete, `df-uat` writes `validated` before entering `df-accept`. `df-accept` blocks direct archival while state is `ready_for_uat`. Manual UAT is no longer modeled as a normal checklist execution item.
 
 ---
 
@@ -150,7 +150,7 @@ When `df-plan` continues from `devflow/roadmap.md`, status priority is `下一�
 
 ### Runtime Helper And Issue Compaction
 
-`runtime/devflow_cli.py` and `runtime/pr_ci_merge.py` are the published deterministic helper sources for this repository; the local runtime copy lives at `~/.codex/local/devflow/`. The `df-uat` start-of-session and pre-registration compaction gate is handled by `compact-issues`, which moves closed/deferred issues and legacy `REVIEW-*` history into feature-local `evidence/` while the active `issues.yaml` keeps only the current work set and `history_ref`.
+`runtime/devflow_cli.py` and `runtime/pr_ci_merge.py` are the published deterministic helper sources for this repository; the local runtime copy lives at `~/.codex/local/devflow/`. The `df-uat` start-of-session and pre-registration compaction gate is handled by `compact-issues`, which moves closed/deferred issues and legacy `REVIEW-*` history into feature-local `evidence/` while the active `issues.yaml` keeps only the current work set and `history_ref`. Handoff saves preserve the complete queue, short card, checkpoint, and stop-loss sections needed for recovery, while `evidence/manifest.json` keeps only the latest record for each gate/status pair to prevent unbounded gate history growth; archival checks use the latest record per gate to decide the current pass/fail state.
 
 ### Layered Codebase Map
 
@@ -200,6 +200,8 @@ RED and regression tests should bind to public interfaces, user-visible behavior
 
 Only after the full feedback round is captured may the agent choose one explicit issue id and enter `df-fix`.
 
+Before switching into `df-fix`, `df-uat` writes a `fix_context_card` of at most 20 lines into `handoff.md`, containing only the target issue, failure surface, current checkpoint, matrix reference, reproduction, and UAT progress. `df-fix` reads that card first, then reads the target issue and matrix row only as needed.
+
 ### df-fix Triage And Stop-Loss
 
 `df-fix` handles open UAT issues in the active feature and triages before code changes:
@@ -238,7 +240,7 @@ If execution or fixing reveals that module responsibilities, public contracts, s
 | `df-constraint-audit` | Read-only audit for drift between gate descriptions, status semantics, contracts, and facts. | constraint findings and source-of-truth recommendations |
 | `df-execute` | Execute checklist items after explicit authorization, run targeted tests first, then commit and update evidence, pausing at `ready_for_uat` when a `uat_ready` checkpoint is reached. | code changes, commits, `evidence/manifest.json`, `handoff.md` |
 | `df-review-loop` | Use `codex exec review` to review diffs; keep execute-time review lightweight, run one-pass UAT-fix regression checks for new P0/P1, and close deferred findings commit-by-commit after UAT is green; non-Codex environments write `tooling_blocked` instead of claiming PASS. | `evidence/reviews/`, `review-findings.yaml` |
-| `df-status` | Save a handoff or restore the current feature in a new session; saving preserves queue, UAT checkpoint, and stop-loss context. | `handoff.md`, restored context |
+| `df-status` | Save a handoff or restore the current feature in a new session; saving preserves queue, UAT checkpoint, and stop-loss context, while restore reads by status tier. | `handoff.md`, restored context |
 | `df-uat` | Guide current-checkpoint or full manual UAT and capture the full feedback round. | `uat.md`, `issues.yaml` |
 | `df-fix` | Fix active feature UAT issues through RED, patch, validation, closure, and retesting at the same checkpoint. | fix commits, issue closure records, validation evidence |
 | `df-regression` | Handle post-acceptance regressions or new UAT issues for archived features. | regression issues, evidence, closure records in the archive feature |

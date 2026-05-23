@@ -30,14 +30,17 @@ metadata:
 17. 若实现期 `review-findings.yaml` 存在 `status: deferred_to_post_uat` 的 findings，归档前必须先跑 `$df-review-loop` 的 `post-uat` 模式（逐 commit review + 批量修），确认 deferred findings 已处理或 waiver。
 18. 若 checklist、handoff 或提交记录显示本 feature 使用过 `$df-review-loop`，必须检查 `evidence/reviews/` 与 `review-findings.yaml`：最终状态应为 `review_loop_status: pass`，或所有未修 finding 都有明确 waiver/manual_review 记录。`scope_decision: out_of_scope_followup` / `independent_followup` 的 P0/P1 只有同时写明非阻断理由、后续归属和与当前交付无交叉的证据时，才可视为已审计的非阻断项；`uncertain_scope` 仍阻断归档。`mode: coverage` 的 P1 finding 也必须已修复、waiver 或明确不属于当前 coverage scope。未处理 P0/P1、缺失 review 轮次证据或 `tooling_blocked` 未写补救条件时不得归档。
 19. 归档审计只核验 `plan.md#capability-coverage-matrix` 这一张矩阵。高风险 feature 的 `acceptance.md` 必须写 `capability_coverage_matrix_checked: true`，且矩阵每行都有实现项、validation、UAT 项、不可替代证据或明确 waiver。
-20. `issues.yaml` 不得存在 `status: fixed_pending_retest`，也不得存在 `status: closed` 但仍有 `needs_retest: true` 或 `retest_status: pending` 的 legacy issue；这类 issue 仍视为未关闭。
-21. 若 `state.yaml status: ready_for_uat`，说明当前停在分段 UAT-ready 断点；必须先回 `$df-uat` 完成该断点全部 UAT 或记录 waiver，不得直接归档。
+20. 所有非 waiver UAT 通过后，必须足以证明 `plan.md#目标` 中的目标能力已经完成；通过时先把 `acceptance.md` 写为 `feature_goal_closure_checked: true`，不能证明但用户接受时写明确 `feature_goal_closure_waiver`。`feature_goal_closure_waiver` 非空时必须人工审查 waiver 内容、残余风险和后续归属是否合理。如果 UAT 全绿仍不能覆盖目标且没有 waiver，不得归档，必须回 `$df-plan` 补覆盖或缩小目标。
+21. `issues.yaml` 不得存在 `status: fixed_pending_retest`，也不得存在 `status: closed` 但仍有 `needs_retest: true` 或 `retest_status: pending` 的 legacy issue；这类 issue 仍视为未关闭。
+22. 若 `state.yaml status: ready_for_uat`，说明当前停在分段 UAT-ready 断点；必须先回 `$df-uat` 完成该断点全部 UAT 或记录 waiver，不得直接归档。
 
 ## 脚本门禁
 
 运行：
 
 `uv run python /Users/yinghai/.codex/local/devflow/devflow_cli.py --repo <repo> accept`
+
+若目标能力闭合已人工审查通过，可使用 `accept --feature-goal-closure-checked` 让 helper 写入确定性字段；若用户接受目标缩小或残余风险，使用 `accept --feature-goal-closure-waiver "<明确原因和后续归属>"`。不得用 `待补充`、`todo`、`占位` 等占位文本作为 waiver。
 
 脚本失败时，不要归档，不要宣称完成；按失败信息补证据或回到 `$df-fix` / `$df-plan`。
 
@@ -59,8 +62,9 @@ metadata:
 - `issues.yaml` 仍有 `open`、`fixed_pending_retest`、`closed + needs_retest: true` 或 `closed + retest_status: pending` issue。
 - 高风险 feature 未选择 regression、golden、integration 或 e2e 类型门禁。
 - 已选择关键门禁但没有通过 `run-gate` 生成的通过证据。
-- 任一门禁在 manifest 中记录为 failed。
+- 任一门禁在 manifest 中的最新记录为 failed。
 - 高风险 feature 缺少 `Capability Coverage Matrix` 或归档闭环证据。
+- 新模板 feature 的 `acceptance.md` 仍是 `feature_goal_closure_checked: false` 且没有明确 waiver。
 - 固定 checklist 项没有完成或 waiver，包括设计文档同步检查、发布闭环适用性检查。
 - `uat.md` 仍是初始模板、只有泛泛人工验收记录，或缺少核心用户可见路径的人工 UAT/waiver。
 - `state.yaml status: ready_for_uat`，当前断点 UAT 尚未完成或未 waiver。
