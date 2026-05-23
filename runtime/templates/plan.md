@@ -41,7 +41,8 @@ map_modules_read: []
 
 ## Capability Coverage Matrix
 
-> 单一能力覆盖矩阵。`df-execute` coverage verification、`df-review-loop` coverage review 和 `df-accept` 归档审计都只核验本表，不另建额外验证矩阵。`df-fix` 只把当前 issue 对应行作为只读参考；没有对应行时，feature lane 或 fix lane 任一为 high-risk 都必须暂停，直到回 `$df-plan`、写 waiver 或调整 scope；非 high-risk 的 fast/scoped 修复才可按 q1/q2、RED -> GREEN 和回归面关闭。不能在修复期补全局矩阵。`UAT 断点`列用于声明哪个 DF 完成后可停下验收，推荐写成 `CP-x / checklist.yaml:DF-xxx -> UAT-xxx`；`CP-x` 只是阅读标签，真正执行绑定仍是 checklist item 的 `uat_ready`。这不是第二张矩阵。`fast` / `standard` 车道中不适用的高风险列可写 N/A 或 waiver；`high-risk` 车道必须填满所有列。
+> 单一能力覆盖矩阵；coverage verification、coverage review 和 accept audit 只核验本表，不另建额外矩阵。
+> `UAT 断点`写最早可验收的 checklist item；high-risk 行必须填实现、validation、UAT、不可替代证据或 waiver。
 
 | 用户可见能力 | 用户动作链 | 下游成功判据 | 失败信号 | 实现项 | validation | UAT 项 | UAT 断点 | 不可替代证据 | waiver/残余风险 |
 |---|---|---|---|---|---|---|---|---|---|
@@ -51,6 +52,8 @@ map_modules_read: []
 
 - 是否需要分段 UAT-ready 断点：待补充。
 - 首个用户可感知阶段成果：待补充；若没有早期断点，说明 waiver/残余风险。
+- 断点能力闭合：每个 `uat_ready` 断点到达时，是否已经具备对应 UAT 的入口、用户动作链和期望结果；待补充。
+- 目标能力闭合：所有非 waiver UAT 通过后，是否足以证明 `## 目标` 已完成；待补充。
 - 推荐断点阶梯：工作台/入口可见 -> 主输入解析可试 -> 外部数据源/真实查询可见 -> 业务规则可验 -> 人工介入闭环可验 -> 正式输出物或确认动作可验 -> 持久化、安全、集成收口。
 - 断点声明规则：只在对应实现 checklist item 上写 `uat_ready`；不得新增“执行人工 UAT”类 checklist item。
 - `uat_ready` 最小字段：`level`（required/advisory）、`uat_items`、`reason`。

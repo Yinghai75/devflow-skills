@@ -16,11 +16,14 @@
 - [ ] golden set 已检查；涉及行为变更时样本已更新或明确豁免
 - [ ] AI review loop 证据已检查；适用时 findings 已 pass、waiver、manual_review，或具备可审计非阻断理由的 out_of_scope/independent_followup
 - [ ] Capability Coverage Matrix 已闭环；高风险能力逐行具备实现、validation、UAT、不可替代证据或 waiver
+- [ ] 非 waiver UAT 已能共同证明 plan.md#目标 的 feature 能力完成
 - [ ] execute validation gap 已回顾；首测发现 3 个或更多 issue 时已记录改进建议
 
 ## Stale Gate
 
 - capability_coverage_matrix_checked: false
+- feature_goal_closure_checked: false
+- feature_goal_closure_waiver: 无
 - capability_coverage_matrix_ref: plan.md#capability-coverage-matrix
 - capability_coverage_matrix_evidence: []
 - capability_coverage_matrix_waiver: 无

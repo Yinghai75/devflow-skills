@@ -11,8 +11,10 @@ from devflow_cli import (
     TEMPLATE_DIR,
     accept_feature,
     add_uat_issue,
+    append_manifest,
     checklist_incomplete,
     create_feature,
+    evidence_records,
     ensure_shared,
     existing_uat_issue_ids,
     infer_lane,
@@ -74,6 +76,8 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertIn("失败信号", plan)
         self.assertIn("UAT 断点", plan)
         self.assertIn("不可替代证据", plan)
+        self.assertIn("断点能力闭合", plan)
+        self.assertIn("目标能力闭合", plan)
         self.assertIn("## 架构自审", plan)
         self.assertIn("公共核心、变体适配层与不变量归属", plan)
         self.assertIn("接缝替换测试", plan)
@@ -97,6 +101,7 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertIn("对应下游成功判据", uat)
         acceptance = (feature / "acceptance.md").read_text(encoding="utf-8")
         self.assertIn("capability_coverage_matrix_checked: false", acceptance)
+        self.assertIn("feature_goal_closure_checked: false", acceptance)
         self.assertIn("codebase_map_checked: false", acceptance)
         self.assertIn("truth_doc_checked: false", acceptance)
         self.assertIn("golden_set_checked: false", acceptance)
@@ -186,6 +191,164 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertIn("UAT-001", restored.content)
         self.assertNotIn("保存新断点", restored.content)
 
+    def test_save_handoff_preserves_full_dispatch_queue_context(self):
+        feature = create_feature(self.repo, "长 handoff", "standard", "保留完整队列", [], [])
+        long_queue = "\n".join(f"- DF-{index:03d}: pending" for index in range(1, 75))
+        (feature / "handoff.md").write_text(
+            f"""# 断点
+
+## dispatch_queue
+
+{long_queue}
+
+## 当前 UAT 断点
+
+- status: ready_for_uat
+- uat_items: [UAT-001]
+
+## doom_loop_breaker
+
+- dependency_scope: feature_blocking
+- next_decision: 回到 df-plan
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "保存长上下文", next_steps=["等待用户决定"])
+        restored = restore_handoff(self.repo)
+
+        # dispatch_queue 74 行单独超过 60 行上限，被截到 overflow
+        # UAT 断点和 doom_loop_breaker 属于 priority 且小于上限，被保留
+        self.assertIn("doom_loop_breaker", restored.content)
+        self.assertIn("UAT-001", restored.content)
+        self.assertIn("dispatch_queue", restored.content)
+        self.assertIn("DF-074", restored.content)
+
+        handoff_content = (feature / "handoff.md").read_text(encoding="utf-8")
+        self.assertIn("archived_handoff_context:", handoff_content)
+
+        # 超长 dispatch_queue 被归档到 evidence/handoff-history-*.md
+        evidence_dir = feature / "evidence"
+        history_files = sorted(evidence_dir.glob("handoff-history-*.md"))
+        self.assertEqual(1, len(history_files))
+        overflow_content = history_files[0].read_text(encoding="utf-8")
+        self.assertIn("dispatch_queue", overflow_content)
+        self.assertIn("DF-074", overflow_content)
+
+        save_handoff(feature, "再次保存长上下文", next_steps=["继续恢复"])
+        restored = restore_handoff(self.repo)
+
+        self.assertIn("再次保存长上下文", restored.content)
+        self.assertIn("dispatch_queue", restored.content)
+        self.assertIn("DF-074", restored.content)
+        self.assertIn("doom_loop_breaker", restored.content)
+
+    def test_save_handoff_does_not_truncate_within_limit(self):
+        feature = create_feature(self.repo, "短 handoff", "standard", "不截断短上下文", [], [])
+        short_queue = "\n".join(f"- DF-{index:03d}: pending" for index in range(1, 10))
+        (feature / "handoff.md").write_text(
+            f"""# 断点
+
+## dispatch_queue
+
+{short_queue}
+
+## doom_loop_breaker
+
+- dependency_scope: feature_blocking
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "保存短上下文", next_steps=["继续执行"])
+        restored = restore_handoff(self.repo)
+
+        self.assertIn("dispatch_queue", restored.content)
+        self.assertIn("DF-009", restored.content)
+        self.assertIn("doom_loop_breaker", restored.content)
+        # 不超过 60 行，不应有 overflow 归档
+        evidence_dir = feature / "evidence"
+        if evidence_dir.exists():
+            self.assertEqual(0, len(list(evidence_dir.glob("handoff-history-*.md"))))
+
+    def test_save_handoff_truncation_preserves_priority_over_non_priority(self):
+        feature = create_feature(self.repo, "截断优先级", "standard", "优先保留关键区块", [], [])
+        # 构造 35 行失败摘要（non-priority）+ 20 行 dispatch_queue（priority）+ 5 行 doom_loop_breaker（priority）
+        # persistent_handoff_context 保留总计约 60+ 行，触发截断
+        failures = "\n".join(f"- 失败项 {index}" for index in range(1, 36))
+        queue = "\n".join(f"- DF-{index:03d}: pending" for index in range(1, 21))
+        (feature / "handoff.md").write_text(
+            f"""# 断点
+
+## 失败摘要
+
+{failures}
+
+## dispatch_queue
+
+{queue}
+
+## doom_loop_breaker
+
+- dependency_scope: feature_blocking
+- next_decision: 回到 df-plan
+- attempt_count: 3
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "保存截断测试", next_steps=["检查优先级"])
+        restored = restore_handoff(self.repo)
+        preserved = restored.content.split("## 已保留的执行上下文", 1)[1]
+
+        # priority 区块应被保留
+        self.assertIn("dispatch_queue", preserved)
+        self.assertIn("DF-020", preserved)
+        self.assertIn("doom_loop_breaker", preserved)
+        # non-priority 的失败摘要被截到 overflow
+        evidence_dir = feature / "evidence"
+        history_files = sorted(evidence_dir.glob("handoff-history-*.md"))
+        self.assertEqual(1, len(history_files))
+        overflow_content = history_files[0].read_text(encoding="utf-8")
+        self.assertIn("失败摘要", overflow_content)
+        self.assertIn("失败项 35", overflow_content)
+
+    def test_save_handoff_truncation_preserves_chinese_priority_headings(self):
+        feature = create_feature(self.repo, "中文优先级", "standard", "保留中文断点", [], [])
+        failures = "\n".join(f"- 失败项 {index}" for index in range(1, 56))
+        (feature / "handoff.md").write_text(
+            f"""# 断点
+
+## 失败摘要
+
+{failures}
+
+## 当前 UAT 断点
+
+- status: ready_for_uat
+- uat_items: [UAT-007]
+
+## 止损
+
+- dependency_scope: feature_blocking
+- next_decision: 回到 df-plan
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "保存中文优先级", next_steps=["恢复断点"])
+        handoff_content = (feature / "handoff.md").read_text(encoding="utf-8")
+
+        self.assertIn("## 当前 UAT 断点", handoff_content)
+        self.assertIn("UAT-007", handoff_content)
+        self.assertIn("## 止损", handoff_content)
+
+        history_files = sorted((feature / "evidence").glob("handoff-history-*.md"))
+        self.assertEqual(1, len(history_files))
+        overflow_content = history_files[0].read_text(encoding="utf-8")
+        self.assertIn("失败摘要", overflow_content)
+        self.assertIn("失败项 55", overflow_content)
+
     def test_save_handoff_preserves_doom_loop_breaker_context(self):
         feature = create_feature(self.repo, "止损断点", "standard", "保留止损", [], [])
         (feature / "handoff.md").write_text(
@@ -204,6 +367,136 @@ class DevFlowCliTest(unittest.TestCase):
 
         self.assertIn("doom_loop_breaker", restored.content)
         self.assertIn("feature_blocking", restored.content)
+
+    def test_save_handoff_preserves_fix_context_card(self):
+        feature = create_feature(self.repo, "转修短卡", "standard", "保留修复上下文", [], [])
+        (feature / "handoff.md").write_text(
+            """# 断点
+
+## fix_context_card
+
+- target_issue: UAT-003
+- coverage_matrix_row: 3
+- reproduction: 填写金额 -> 提交
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "保存转修断点", next_steps=["df-fix UAT-003"])
+        restored = restore_handoff(self.repo)
+
+        self.assertIn("fix_context_card", restored.content)
+        self.assertIn("UAT-003", restored.content)
+        self.assertIn("coverage_matrix_row", restored.content)
+
+    def test_save_handoff_preserves_plan_and_execution_gap(self):
+        feature = create_feature(self.repo, "断点缺口", "standard", "保留断点缺口", [], [])
+        (feature / "handoff.md").write_text(
+            """# 断点
+
+## plan_gap
+
+- UAT-002 缺少真实入口。
+
+execution_gap:
+  - UAT-003 用户动作链尚未实现。
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "保存缺口", next_steps=["回 df-plan"])
+        restored = restore_handoff(self.repo)
+
+        self.assertIn("plan_gap", restored.content)
+        self.assertIn("UAT-002", restored.content)
+        self.assertIn("execution_gap", restored.content)
+        self.assertIn("UAT-003", restored.content)
+
+    def test_save_handoff_preserves_gap_context_until_explicit_clear(self):
+        feature = create_feature(self.repo, "缺口待处理", "standard", "保留断点缺口", [], [])
+        (feature / "handoff.md").write_text(
+            """# 断点
+
+## plan_gap
+
+- UAT-002 缺少真实入口。
+
+## execution_gap
+
+- UAT-003 用户动作链尚未实现。
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "保存断点", next_steps=["等待用户决定"])
+        restored = restore_handoff(self.repo)
+
+        self.assertIn("plan_gap", restored.content)
+        self.assertIn("execution_gap", restored.content)
+        self.assertIn("UAT-002", restored.content)
+        self.assertIn("UAT-003", restored.content)
+
+        save_handoff(feature, "缺口已解决", next_steps=["执行 DF-002"], clear_context=True)
+        restored = restore_handoff(self.repo)
+
+        self.assertNotIn("plan_gap", restored.content)
+        self.assertNotIn("execution_gap", restored.content)
+
+    def test_save_handoff_keeps_latest_fix_context_card_only(self):
+        feature = create_feature(self.repo, "多轮转修短卡", "standard", "保留最新修复上下文", [], [])
+        (feature / "handoff.md").write_text(
+            """# 断点
+
+## fix_context_card
+
+- target_issue: UAT-001
+- coverage_matrix_row: 1
+
+## fix_context_card
+
+- target_issue: UAT-004
+- coverage_matrix_row: 4
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "保存最新转修断点", next_steps=["df-fix UAT-004"])
+        restored = restore_handoff(self.repo)
+
+        self.assertNotIn("UAT-001", restored.content)
+        self.assertIn("UAT-004", restored.content)
+        self.assertIn("coverage_matrix_row: 4", restored.content)
+
+    def test_save_handoff_splits_inline_context_cards_before_dedupe(self):
+        feature = create_feature(self.repo, "inline 短卡", "standard", "保留最新 inline 上下文", [], [])
+        (feature / "handoff.md").write_text(
+            """# 断点
+
+fix_context_card:
+  target_issue: UAT-001
+  coverage_matrix_row: 1
+plan_gap:
+  reason: old gap
+fix_context_card:
+  target_issue: UAT-004
+  coverage_matrix_row: 4
+plan_gap:
+  reason: new gap
+execution_gap:
+  reason: missing action
+""",
+            encoding="utf-8",
+        )
+
+        save_handoff(feature, "保存 inline 上下文", next_steps=["等待用户决定"])
+        restored = restore_handoff(self.repo)
+
+        self.assertNotIn("UAT-001", restored.content)
+        self.assertNotIn("old gap", restored.content)
+        self.assertIn("UAT-004", restored.content)
+        self.assertIn("coverage_matrix_row: 4", restored.content)
+        self.assertIn("new gap", restored.content)
+        self.assertIn("missing action", restored.content)
 
     def test_save_handoff_can_clear_resolved_context(self):
         feature = create_feature(self.repo, "清除断点", "standard", "清除已完成队列", [], [])
@@ -282,13 +575,16 @@ class DevFlowCliTest(unittest.TestCase):
         self.assertNotIn("当前断点 UAT-001 失败", restored.content)
 
     def test_runtime_cli_supports_module_execution(self):
-        completed = subprocess.run(
-            [sys.executable, "-m", "runtime.devflow_cli", "--help"],
-            cwd=Path(__file__).resolve().parents[2],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        repo_root = Path(__file__).resolve().parents[2]
+        local_root = Path(__file__).resolve().parents[1]
+        if (repo_root / "runtime" / "devflow_cli.py").exists():
+            command = [sys.executable, "-m", "runtime.devflow_cli", "--help"]
+            cwd = repo_root
+        else:
+            command = [sys.executable, str(local_root / "devflow_cli.py"), "--help"]
+            cwd = local_root
+
+        completed = subprocess.run(command, cwd=cwd, capture_output=True, text=True, check=False)
 
         self.assertEqual(0, completed.returncode, completed.stderr)
         self.assertIn("DevFlow 本地状态工具", completed.stdout)
@@ -825,6 +1121,129 @@ tooling_blocked: true
 
         self.assertTrue(result.ok)
 
+    def test_accept_blocks_missing_feature_goal_closure(self):
+        feature = create_feature(self.repo, "目标闭合缺失", "standard", "修复 UAT", [], [])
+        (feature / "checklist.yaml").write_text(
+            """items:
+  - id: DF-001
+    title: "补全计划与验证门禁"
+    status: done
+    owner: main
+    paths: []
+    validation: []
+""",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("feature 目标能力缺少 UAT 闭合证据", result.messages)
+
+    def test_accept_blocks_placeholder_feature_goal_closure_waiver(self):
+        feature = create_feature(self.repo, "目标闭合占位 waiver", "standard", "修复 UAT", [], [])
+        (feature / "checklist.yaml").write_text(
+            """items:
+  - id: DF-001
+    title: "补全计划与验证门禁"
+    status: done
+    owner: main
+    paths: []
+    validation: []
+""",
+            encoding="utf-8",
+        )
+        acceptance_path = feature / "acceptance.md"
+        acceptance_path.write_text(
+            acceptance_path.read_text(encoding="utf-8").replace(
+                "feature_goal_closure_waiver: 无",
+                "feature_goal_closure_waiver: 待补充",
+            ),
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertFalse(result.ok)
+        self.assertIn("feature 目标能力缺少 UAT 闭合证据", result.messages)
+
+    def test_accept_allows_meaningful_feature_goal_closure_waiver(self):
+        feature = create_feature(self.repo, "目标闭合明确 waiver", "standard", "修复 UAT", [], [])
+        (feature / "checklist.yaml").write_text(
+            """items:
+  - id: DF-001
+    title: "补全计划与验证门禁"
+    status: done
+    owner: main
+    paths: []
+    validation: []
+""",
+            encoding="utf-8",
+        )
+        acceptance_path = feature / "acceptance.md"
+        acceptance_path.write_text(
+            acceptance_path.read_text(encoding="utf-8").replace(
+                "feature_goal_closure_waiver: 无",
+                "feature_goal_closure_waiver: 用户确认本轮目标收缩到已通过的 UAT 范围，剩余能力进入后续 backlog。",
+            ),
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertTrue(result.ok)
+
+    def test_accept_cli_can_mark_feature_goal_closure_checked(self):
+        feature = create_feature(self.repo, "目标闭合 CLI", "standard", "修复 UAT", [], [])
+        (feature / "checklist.yaml").write_text(
+            """items:
+  - id: DF-001
+    title: "补全计划与验证门禁"
+    status: done
+    owner: main
+    paths: []
+    validation: []
+""",
+            encoding="utf-8",
+        )
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).resolve().parents[1] / "devflow_cli.py"),
+                "--repo",
+                str(self.repo),
+                "accept",
+                "--feature-goal-closure-checked",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertFalse(feature.exists())
+        self.assertTrue((self.repo / "devflow/archive" / feature.name).exists())
+
+    def test_accept_allows_legacy_acceptance_without_feature_goal_closure_fields(self):
+        feature = create_feature(self.repo, "旧验收模板", "standard", "修复 UAT", [], [])
+        self.complete_default_checklist(feature)
+        acceptance_path = feature / "acceptance.md"
+        acceptance_path.write_text(
+            "\n".join(
+                line
+                for line in acceptance_path.read_text(encoding="utf-8").splitlines()
+                if not line.strip().startswith(
+                    ("- feature_goal_closure_checked:", "- feature_goal_closure_waiver:")
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = accept_feature(feature)
+
+        self.assertTrue(result.ok)
+
     def test_accept_warns_empty_validation_for_standard_lane(self):
         feature = create_feature(self.repo, "空验证", "standard", "局部修复", [], [])
         self.complete_default_checklist(feature)
@@ -903,6 +1322,31 @@ tooling_blocked: true
         self.assertTrue(result.ok)
         self.assertFalse(feature.exists())
         self.assertTrue((self.repo / "devflow/archive" / feature.name).exists())
+
+    def test_manifest_keeps_latest_record_per_gate_status(self):
+        feature = create_feature(self.repo, "manifest 去重", "standard", "减少重复门禁记录", [], [])
+        append_manifest(feature, {"gate_id": "unit-tests", "status": "failed", "run_at": "old-fail"})
+        append_manifest(feature, {"gate_id": "unit-tests", "status": "passed", "run_at": "old-pass"})
+        append_manifest(feature, {"gate_id": "unit-tests", "status": "failed", "run_at": "new-fail"})
+        append_manifest(feature, {"gate_id": "unit-tests", "status": "passed", "run_at": "new-pass"})
+
+        records = evidence_records(feature)
+
+        self.assertEqual(["new-fail", "new-pass"], [record["run_at"] for record in records])
+        self.assertEqual(["failed", "passed"], [record["status"] for record in records])
+
+    def test_accept_uses_latest_manifest_record_per_gate(self):
+        feature = create_feature(self.repo, "门禁失败后通过", "high-risk", "改状态机", [], [])
+        recommend_gates(feature, surfaces=["state-machine"])
+        self.complete_default_checklist(feature)
+        update_state(feature, status="validated", red_evidence="已确认 state-machine-regression 的 RED 样本")
+        self.mark_coverage_matrix_checked(feature)
+        append_manifest(feature, {"gate_id": "state-machine-regression", "status": "failed", "run_at": "old-fail"})
+        append_manifest(feature, {"gate_id": "state-machine-regression", "status": "passed", "run_at": "new-pass"})
+
+        result = accept_feature(feature)
+
+        self.assertTrue(result.ok)
 
     def test_run_gate_rejects_shell_control_tokens(self):
         feature = create_feature(self.repo, "拒绝 shell 控制符", "high-risk", "改状态机", [], [])
@@ -1189,6 +1633,7 @@ tooling_blocked: true
 """,
             encoding="utf-8",
         )
+        self.mark_feature_goal_closure_checked(feature)
 
     def replace_gate_command(self, feature: Path, gate_id: str, command: str) -> None:
         registry = self.repo / "devflow" / "shared" / "gate_registry.yaml"
@@ -1217,6 +1662,17 @@ tooling_blocked: true
             text.replace(
                 "capability_coverage_matrix_checked: false",
                 "capability_coverage_matrix_checked: true",
+            ),
+            encoding="utf-8",
+        )
+
+    def mark_feature_goal_closure_checked(self, feature: Path) -> None:
+        path = feature / "acceptance.md"
+        text = path.read_text(encoding="utf-8")
+        path.write_text(
+            text.replace(
+                "feature_goal_closure_checked: false",
+                "feature_goal_closure_checked: true",
             ),
             encoding="utf-8",
         )

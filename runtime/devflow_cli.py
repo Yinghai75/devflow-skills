@@ -17,9 +17,21 @@ from zoneinfo import ZoneInfo
 
 try:
     from .devflow_breakpoints import accept_state_blockers, build_handoff_content
+    from .devflow_handoff_history import (
+        archive_handoff_overflow,
+        attach_handoff_history_ref,
+        handoff_context_for_save,
+        restore_handoff_content,
+    )
     from .devflow_issues import compact_issues
 except ImportError:
     from devflow_breakpoints import accept_state_blockers, build_handoff_content
+    from devflow_handoff_history import (
+        archive_handoff_overflow,
+        attach_handoff_history_ref,
+        handoff_context_for_save,
+        restore_handoff_content,
+    )
     from devflow_issues import compact_issues
 
 
@@ -52,6 +64,20 @@ EXECUTABLE_PREFIXES = {
     "env",
 }
 COMMAND_PLACEHOLDERS = {"按项目", "待补充", "todo", "tbd", "实际命令", "填写", "替换"}
+WAIVER_PLACEHOLDERS = {
+    "",
+    "无",
+    "none",
+    "n/a",
+    "na",
+    "false",
+    "待补充",
+    "todo",
+    "tbd",
+    "未填写",
+    "占位",
+    "placeholder",
+}
 SHELL_CONTROL_TOKENS = {"|", "||", "&", "&&", ";", "<", ">", ">>", "2>", "2>>"}
 HIGH_RISK_MARKERS = {
     "dify",
@@ -353,14 +379,22 @@ def save_handoff(
     feature = Path(feature)
     handoff_path = feature / "handoff.md"
     existing = handoff_path.read_text(encoding="utf-8") if handoff_path.exists() else ""
-    write_text(handoff_path, build_handoff_content(summary, next_steps, now_text(), existing, clear_context))
+    existing = handoff_context_for_save(feature, existing, clear_context)
+    timestamp = now_text()
+    content, overflow = build_handoff_content(summary, next_steps, timestamp, existing, clear_context)
+    if overflow:
+        stamp = datetime.now(BEIJING).strftime("%Y%m%d-%H%M%S")
+        history_ref = archive_handoff_overflow(feature, overflow, stamp, timestamp)
+        content = attach_handoff_history_ref(content, history_ref)
+    write_text(handoff_path, content)
     update_state(feature, current_step=summary)
 
 
 def restore_handoff(repo: Path | str) -> Handoff:
     repo = Path(repo)
     feature = load_active_feature(repo)
-    return Handoff(feature_dir=feature, content=(feature / "handoff.md").read_text(encoding="utf-8"))
+    content = (feature / "handoff.md").read_text(encoding="utf-8")
+    return Handoff(feature_dir=feature, content=restore_handoff_content(feature, content))
 
 
 def existing_uat_issue_ids(feature: Path | str) -> list[int]:
@@ -585,8 +619,42 @@ def append_manifest(feature: Path, record: dict[str, str | int]) -> None:
         data = json.loads(path.read_text(encoding="utf-8"))
     else:
         data = {"gates": []}
-    data.setdefault("gates", []).append(record)
+    records = data.setdefault("gates", [])
+    records.append(record)
+    data["gates"] = dedupe_manifest_records(records)
     write_text(path, json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+
+
+def dedupe_manifest_records(records: list[dict[str, str | int]]) -> list[dict[str, str | int]]:
+    """manifest 去重：每个 gate_id 只保留最后一条 passed 和最后一条 failed。
+
+    未知 status（非 passed/failed）视为 passthrough 永久保留，
+    避免未来新增状态被误删。
+    """
+    latest_index_by_key: dict[tuple[str, str], int] = {}
+    passthrough_indices: set[int] = set()
+    for index, item in enumerate(records):
+        gate_id = str(item.get("gate_id", "")).strip()
+        status = str(item.get("status", "")).strip()
+        if not gate_id:
+            passthrough_indices.add(index)
+            continue
+        if status not in {"passed", "failed"}:
+            # 保守策略：未知 status 不参与去重，永久保留
+            passthrough_indices.add(index)
+            continue
+        latest_index_by_key[(gate_id, status)] = index
+    keep = set(latest_index_by_key.values()) | passthrough_indices
+    return [item for index, item in enumerate(records) if index in keep]
+
+
+def latest_manifest_records_by_gate(records: list[dict[str, str | int]]) -> dict[str, dict[str, str | int]]:
+    latest: dict[str, dict[str, str | int]] = {}
+    for record in records:
+        gate_id = str(record.get("gate_id", "")).strip()
+        if gate_id:
+            latest[gate_id] = record
+    return latest
 
 
 def evidence_records(feature: Path) -> list[dict[str, str | int]]:
@@ -676,7 +744,6 @@ def has_open_issues(feature: Path) -> bool:
 
 def high_risk_missing_coverage_matrix_evidence(feature: Path) -> bool:
     plan = (feature / "plan.md").read_text(encoding="utf-8")
-    acceptance = (feature / "acceptance.md").read_text(encoding="utf-8")
     required_fields = [
         "用户可见能力",
         "用户动作链",
@@ -693,12 +760,45 @@ def high_risk_missing_coverage_matrix_evidence(feature: Path) -> bool:
         return True
     if not capability_matrix_has_required_header(plan, required_fields):
         return True
+    return acceptance_field_value(feature, "capability_coverage_matrix_checked") != "true"
+
+
+def missing_feature_goal_closure_evidence(feature: Path) -> bool:
+    checked_value = acceptance_field_value(feature, "feature_goal_closure_checked")
+    waiver = acceptance_field_value(feature, "feature_goal_closure_waiver")
+    if not checked_value and not waiver:
+        return False
+    checked = checked_value == "true"
+    return not checked and waiver in WAIVER_PLACEHOLDERS
+
+
+def acceptance_field_value(feature: Path, field: str) -> str:
+    acceptance = (feature / "acceptance.md").read_text(encoding="utf-8")
     for raw in acceptance.splitlines():
         stripped = raw.strip().removeprefix("- ").strip()
-        if stripped.startswith("capability_coverage_matrix_checked:"):
-            value = stripped.split(":", 1)[1].strip().strip('"').strip("'").lower()
-            return value != "true"
-    return True
+        if stripped.startswith(f"{field}:"):
+            return stripped.split(":", 1)[1].strip().strip('"').strip("'").lower()
+    return ""
+
+
+def set_acceptance_field(feature: Path, field: str, value: str) -> None:
+    path = feature / "acceptance.md"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    output: list[str] = []
+    replaced = False
+    for raw in lines:
+        stripped = raw.strip()
+        bullet = "- " if stripped.startswith("- ") else ""
+        body = stripped.removeprefix("- ").strip()
+        if body.startswith(f"{field}:"):
+            indent = raw[: len(raw) - len(raw.lstrip())]
+            output.append(f"{indent}{bullet}{field}: {value}")
+            replaced = True
+            continue
+        output.append(raw)
+    if not replaced:
+        output.append(f"- {field}: {value}")
+    write_text(path, "\n".join(output) + "\n")
 
 
 def capability_matrix_has_required_header(plan: str, required_fields: Iterable[str]) -> bool:
@@ -903,8 +1003,9 @@ def accept_feature(feature: Path | str) -> AcceptResult:
     gate_types = gate_type_map(feature)
     effective = [gate for gate in selected_ids if gate_types.get(gate) in EFFECTIVE_GATE_TYPES and gate != "smoke"]
     records = evidence_records(feature)
-    passed_gates = {str(record.get("gate_id")) for record in records if record.get("status") == "passed"}
-    failed_gates = [str(record.get("gate_id")) for record in records if record.get("status") == "failed"]
+    latest_records = latest_manifest_records_by_gate(records)
+    passed_gates = {gate_id for gate_id, record in latest_records.items() if record.get("status") == "passed"}
+    failed_gates = [gate_id for gate_id, record in latest_records.items() if record.get("status") == "failed"]
     review_blockers = review_loop_blockers(feature)
     messages.extend(accept_state_blockers(state))
     if checklist_incomplete(feature):
@@ -917,6 +1018,8 @@ def accept_feature(feature: Path | str) -> AcceptResult:
         messages.append("高风险任务缺少 RED 证据或历史故障样本")
     if lane == "high-risk" and high_risk_missing_coverage_matrix_evidence(feature):
         messages.append("高风险能力缺少 Capability Coverage Matrix 闭环证据")
+    if missing_feature_goal_closure_evidence(feature):
+        messages.append("feature 目标能力缺少 UAT 闭合证据")
     if failed_gates:
         messages.append("存在失败门禁证据")
     if effective and not records:
@@ -980,7 +1083,9 @@ def main() -> int:
 
     sub.add_parser("compact-issues")
 
-    sub.add_parser("accept")
+    accept = sub.add_parser("accept")
+    accept.add_argument("--feature-goal-closure-checked", action="store_true")
+    accept.add_argument("--feature-goal-closure-waiver", default="")
 
     args = parser.parse_args()
     repo = Path(args.repo).resolve()
@@ -1026,6 +1131,10 @@ def main() -> int:
         print(result.history_path or result.active_path)
         return 0
     if args.command == "accept":
+        if args.feature_goal_closure_checked:
+            set_acceptance_field(feature, "feature_goal_closure_checked", "true")
+        if args.feature_goal_closure_waiver:
+            set_acceptance_field(feature, "feature_goal_closure_waiver", args.feature_goal_closure_waiver)
         result = accept_feature(feature)
         for warning in result.warnings:
             print(f"警告：{warning}")
